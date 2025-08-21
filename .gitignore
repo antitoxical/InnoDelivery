@@ -1,1 +1,11 @@
-/target
+/user_service/target
+/user_service/target/debug
+/user_service/target/debug/build
+/user_service/target/debug/build/actix-web-*
+/user_service/target/debug/build/actix-*
+
+/user_service/.env
+/user_service/target/debug/deps
+/target/debug/.fingerprint/
+/target/debug/build/
+/target/
