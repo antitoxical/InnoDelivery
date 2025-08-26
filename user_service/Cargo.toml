@@ -1,0 +1,18 @@
+[package]
+name = "user_service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+actix-web = "4.0.1"
+dotenv = "0.15.0"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+jsonwebtoken = "8.2.0"
+chrono = "0.4.23"
+argon2 = "0.4.1"
+diesel = { version = "1.4.8", features = ["postgres", "chrono"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.91"
+
