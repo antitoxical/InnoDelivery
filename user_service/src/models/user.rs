@@ -1,29 +1,34 @@
-use crate::schema::{users, couriers};
-use diesel::prelude::*;
-use chrono::NaiveDateTime;
-use serde::{Serialize, Deserialize};
+// src/models/user.rs
 
-#[derive(Insertable, Debug)]
-#[diesel(table_name = users)]
-pub struct Users {
-    pub id: String,
-    pub first_name: String,
-    pub address: String,
+use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use chrono::NaiveDateTime;
+use crate::schema::users;
+
+#[derive(Queryable, Selectable, Identifiable, AsChangeset, Debug, Clone, Serialize, Deserialize)]
+#[diesel(table_name = crate::schema::users)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct User {
+    pub id: Uuid,
+    pub name: String,
     pub phone_number: String,
     pub email: String,
-    #[serde(skip_serializing)]
     pub password: String,
     pub role: String,
+    pub favorite_address: Option<String>,
     pub is_blocked: bool,
     pub is_deleted: bool,
     pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime
+    pub updated_at: NaiveDateTime,
 }
-#[derive(Insertable, Debug)]
-#[diesel(belongs_to(Users))]
-#[diesel(table_name = courier)]
-pub struct Couriers {
-    pub id: String,
-    pub is_free: bool,
-    pub rating: f64,
+
+#[derive(Insertable, Debug, Serialize, Deserialize)]
+#[diesel(table_name = users)]
+pub struct NewUser {
+    pub name: String,
+    pub phone_number: String,
+    pub email: String,
+    pub password: String,
+    pub role: String,
 }
