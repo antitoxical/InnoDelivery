@@ -1,9 +1,9 @@
-use diesel::PgConnection;
-use crate::models::user::User as DbUser;
-use uuid::Uuid;
 use crate::dto::user_dto::UpdateUser;
-use crate::services::auth_service::AuthError;
+use crate::models::user::User as DbUser;
 use crate::repository::repository;
+use crate::services::auth_service::AuthError;
+use diesel::PgConnection;
+use uuid::Uuid;
 
 pub fn get_user_profile(conn: &mut PgConnection, user_id: Uuid) -> Result<DbUser, AuthError> {
     repository::find_by_id(conn, user_id)

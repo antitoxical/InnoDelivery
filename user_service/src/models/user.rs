@@ -1,12 +1,14 @@
 // src/models/user.rs
 
+use crate::schema::users;
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::NaiveDateTime;
-use crate::schema::users;
 
-#[derive(Queryable, Selectable, Identifiable, AsChangeset, Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Queryable, Selectable, Identifiable, AsChangeset, Debug, Clone, Serialize, Deserialize,
+)]
 #[diesel(table_name = crate::schema::users)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {

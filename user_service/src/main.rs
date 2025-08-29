@@ -1,18 +1,17 @@
 pub mod auth;
+pub mod config;
 pub mod db;
 pub mod dto;
 pub mod handlers;
 pub mod models;
-pub mod services;
-pub mod schema;
 pub mod repository;
-pub mod config;
+pub mod schema;
+pub mod services;
 
-use actix_web::{web, App, HttpServer};
-use handlers::auth_handler::{register_user, login_user};
-use handlers::user_handler::{get_profile, update_profile, delete_profile, get_users};
+use actix_web::{App, HttpServer, web};
 use db::{DbPool, create_db_pool};
-
+use handlers::auth_handler::{login_user, register_user};
+use handlers::user_handler::{delete_profile, get_profile, get_users, update_profile};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -23,7 +22,10 @@ async fn main() -> std::io::Result<()> {
     let pool: DbPool = match create_db_pool() {
         Ok(p) => p,
         Err(e) => {
-            tracing::error!("It was not possible to create a pool of the connections to the database: {}", e);
+            tracing::error!(
+                "It was not possible to create a pool of the connections to the database: {}",
+                e
+            );
             std::process::exit(1);
         }
     };
@@ -36,17 +38,17 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/auth")
                     .route("/register", web::post().to(register_user))
-                    .route("/login", web::post().to(login_user))
+                    .route("/login", web::post().to(login_user)),
             )
             .service(
                 web::scope("/api")
                     .route("/profile", web::get().to(get_profile))
                     .route("/update", web::patch().to(update_profile))
                     .route("/delete", web::delete().to(delete_profile))
-                    .route("/users", web::get().to(get_users))
+                    .route("/users", web::get().to(get_users)),
             )
     })
-        .bind(("127.0.0.1", 8081))?
-        .run()
-        .await
+    .bind(("127.0.0.1", 8081))?
+    .run()
+    .await
 }

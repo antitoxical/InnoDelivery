@@ -1,7 +1,7 @@
+use crate::schema::users;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::schema::users;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NewUser {

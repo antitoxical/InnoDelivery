@@ -1,9 +1,12 @@
-use diesel::prelude::*;
-use crate::models::user::{User as DbUser, NewUser as DbNewUser};
-use crate::schema::users::{self, dsl::{users as all_users, is_deleted}};
 use crate::dto::user_dto::UpdateUser;
-use uuid::Uuid;
+use crate::models::user::{NewUser as DbNewUser, User as DbUser};
+use crate::schema::users::{
+    self,
+    dsl::{is_deleted, users as all_users},
+};
 use crate::services::auth_service::AuthError;
+use diesel::prelude::*;
+use uuid::Uuid;
 
 pub fn find_by_id(conn: &mut PgConnection, user_id: Uuid) -> Result<DbUser, AuthError> {
     all_users
@@ -37,7 +40,11 @@ pub fn create(conn: &mut PgConnection, new_user: DbNewUser) -> Result<DbUser, Au
         .map_err(AuthError::from)
 }
 
-pub fn update(conn: &mut PgConnection, user_id: Uuid, update_data: UpdateUser) -> Result<DbUser, AuthError> {
+pub fn update(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    update_data: UpdateUser,
+) -> Result<DbUser, AuthError> {
     diesel::update(all_users.find(user_id))
         .set(&update_data)
         .get_result::<DbUser>(conn)
