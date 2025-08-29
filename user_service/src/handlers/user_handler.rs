@@ -4,6 +4,7 @@ use crate::db;
 use crate::db::DbPool;
 use crate::services::user_service;
 use crate::dto::user_dto::UpdateUser;
+use crate::services::auth_service::AuthError;
 use uuid::Uuid;
 
 
@@ -25,8 +26,13 @@ pub async fn get_profile(
 
     match result {
         Ok(Ok(user)) => HttpResponse::Ok().json(user),
-        Ok(Err(e)) => HttpResponse::NotFound().body(e.to_string()),
-        Err(_) => HttpResponse::InternalServerError().body("Internal Server Error"),
+        Ok(Err(service_error)) => match service_error {
+            AuthError::DatabaseError(msg) if msg == "The record is not found" => {
+                HttpResponse::NotFound().body(msg)
+            },
+            _ => HttpResponse::InternalServerError().body(service_error.to_string()),
+        },
+        Err(_) => HttpResponse::InternalServerError().body("Internal Server Error."),
     }
 }
 
@@ -50,11 +56,14 @@ pub async fn update_profile(
 
     match result {
         Ok(Ok(updated_user)) => HttpResponse::Ok().json(updated_user),
-        Ok(Err(e)) => {
-            if e.to_string().contains("already busy") {
-                return HttpResponse::Conflict().body(e.to_string());
-            }
-            HttpResponse::InternalServerError().body(e.to_string())
+        Ok(Err(service_error)) => match service_error {
+            AuthError::DatabaseError(msg) if msg.contains("Already busy") => {
+                HttpResponse::Conflict().body(msg)
+            },
+            AuthError::DatabaseError(msg) if msg == "The record is not found" => {
+                HttpResponse::NotFound().body(msg)
+            },
+            _ => HttpResponse::InternalServerError().body(service_error.to_string()),
         },
         Err(_) => HttpResponse::InternalServerError().body("Internal Server Error"),
     }
@@ -79,7 +88,12 @@ pub async fn delete_profile(
     match result {
         Ok(Ok(num_deleted)) if num_deleted > 0 => HttpResponse::NoContent().finish(),
         Ok(Ok(_)) => HttpResponse::NotFound().body("The user was not found."),
-        Ok(Err(e)) => HttpResponse::InternalServerError().body(e.to_string()),
+        Ok(Err(service_error)) => match service_error {
+            AuthError::DatabaseError(msg) if msg == "The record is not found" => {
+                HttpResponse::NotFound().body(msg)
+            },
+            _ => HttpResponse::InternalServerError().body(service_error.to_string()),
+        },
         Err(_) => HttpResponse::InternalServerError().body("Internal Server Error"),
     }
 }

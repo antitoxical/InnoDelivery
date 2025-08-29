@@ -1,6 +1,5 @@
 use diesel::prelude::*;
 use crate::models::user::{NewUser as DbNewUser, User as DbUser};
-use crate::schema::users;
 use crate::dto::user_dto::{NewUser as NewUserDto, LoginUser as LoginUserDto, AuthResponse};
 use crate::auth::jwt::generate_jwt;
 use argon2::{
@@ -13,6 +12,7 @@ use std::fmt;
 use jsonwebtoken;
 use serde::Serialize;
 use tracing;
+use crate::repository::repository;
 
 #[derive(Debug, Serialize)]
 pub enum AuthError {
@@ -40,12 +40,18 @@ impl From<String> for AuthError {
 }
 
 impl From<DieselError> for AuthError {
-    fn from(err: DieselError) -> AuthError {
-        if let DieselError::NotFound = err {
-            return AuthError::DatabaseError("The user was not found".to_string());
+fn from(err: DieselError) -> AuthError {
+    match err {
+        DieselError::NotFound => AuthError::DatabaseError("The record is not found".to_string()),
+        DieselError::DatabaseError(kind, info) => {
+            if let diesel::result::DatabaseErrorKind::UniqueViolation = kind {
+                return AuthError::DatabaseError("Email or phone number are already busy.".to_string());
+            }
+            AuthError::DatabaseError(info.message().to_string())
         }
-        AuthError::DatabaseError(err.to_string())
+        _ => AuthError::DatabaseError(err.to_string()),
     }
+}
 }
 
 impl From<argon2::password_hash::Error> for AuthError {
@@ -60,12 +66,10 @@ impl From<jsonwebtoken::errors::Error> for AuthError {
     }
 }
 
-
 pub fn register_user(conn: &mut PgConnection, new_user_dto: NewUserDto) -> Result<DbUser, AuthError> {
     let mut rng = thread_rng();
     let salt = SaltString::generate(&mut rng);
     let argon2 = Argon2::default();
-
     let hashed_password = argon2.hash_password(new_user_dto.password.as_bytes(), &salt)?
         .to_string();
 
@@ -77,44 +81,20 @@ pub fn register_user(conn: &mut PgConnection, new_user_dto: NewUserDto) -> Resul
         role: "user".to_string(),
     };
 
-    let new_db_user = diesel::insert_into(users::table)
-        .values(&db_new_user)
-        .returning(DbUser::as_returning())
-        .get_result::<DbUser>(conn)?;
-
-    Ok(new_db_user)
+    repository::create(conn, db_new_user)
 }
 
 pub fn login_user(conn: &mut PgConnection, login_user_dto: LoginUserDto) -> Result<AuthResponse, AuthError> {
-    let user = users::table
-        .filter(users::phone_number.eq(&login_user_dto.phone_number))
-        .select(DbUser::as_select())
-        .first::<DbUser>(conn)
-        .map_err(|e| {
-            tracing::error!("Database error when searching for a user'{}': {:?}", &login_user_dto.phone_number, e);
-            if let DieselError::NotFound = e {
-                return AuthError::InvalidCredentials;
-            }
-            AuthError::from(e)
-        })?;
+    let user = repository::find_by_phone(conn, &login_user_dto.phone_number)
+        .map_err(|_| AuthError::InvalidCredentials)?;
 
-    let parsed_hash = PasswordHash::new(&user.password)
-        .map_err(|e| {
-            tracing::error!("Failed to parse the hash password from the database for the user {}: {:?}", user.id, e);
-            e
-        })?;
-
+    let parsed_hash = PasswordHash::new(&user.password)?;
     if Argon2::default().verify_password(login_user_dto.password.as_bytes(), &parsed_hash).is_err() {
         tracing::warn!("Unsuccessful attempt to enter the user: {}", user.id);
         return Err(AuthError::InvalidCredentials);
     }
 
-    let token = generate_jwt(&user)
-        .map_err(|e| {
-            tracing::error!("JWT generation error for user {}: {:?}", user.id, e);
-            e
-        })?;
-
+    let token = generate_jwt(&user)?;
     tracing::info!("User {} successfully entered the system", user.id);
 
     Ok(AuthResponse {

@@ -5,10 +5,12 @@ pub mod handlers;
 pub mod models;
 pub mod services;
 pub mod schema;
+pub mod repository;
+pub mod config;
 
 use actix_web::{web, App, HttpServer};
 use handlers::auth_handler::{register_user, login_user};
-use handlers::user_handler::{get_profile, update_profile, delete_profile, get_users}; // <-- Добавлены delete_profile и get_users
+use handlers::user_handler::{get_profile, update_profile, delete_profile, get_users};
 use db::{DbPool, create_db_pool};
 
 
@@ -18,7 +20,13 @@ async fn main() -> std::io::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let pool: DbPool = create_db_pool();
+    let pool: DbPool = match create_db_pool() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("It was not possible to create a pool of the connections to the database: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     tracing::info!("Server created at http://127.0.0.1:8081");
 
@@ -33,7 +41,7 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/api")
                     .route("/profile", web::get().to(get_profile))
-                    .route("/update", web::put().to(update_profile))
+                    .route("/update", web::patch().to(update_profile))
                     .route("/delete", web::delete().to(delete_profile))
                     .route("/users", web::get().to(get_users))
             )
