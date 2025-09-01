@@ -89,15 +89,14 @@ pub fn register_user(
         role: "user".to_string(),
     };
 
-    repository::create(conn, db_new_user)
+    repository::create(conn, &db_new_user).map_err(AuthError::from)
 }
 
 pub fn login_user(
     conn: &mut PgConnection,
     login_user_dto: LoginUserDto,
 ) -> Result<AuthResponse, AuthError> {
-    let user = repository::find_by_phone(conn, &login_user_dto.phone_number)
-        .map_err(|_| AuthError::InvalidCredentials)?;
+    let user = repository::find_by_phone(conn, &login_user_dto.phone_number)?;
 
     let parsed_hash = PasswordHash::new(&user.password)?;
     if Argon2::default()

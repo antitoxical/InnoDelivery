@@ -39,7 +39,7 @@ impl FromRequest for JwtMiddleware {
         match validate_jwt(token) {
             Ok(claims) => ready(Ok(JwtMiddleware { claims })),
             Err(e) => {
-                tracing::warn!("JWT validation error: {}", e);
+                tracing::error!("JWT validation error: {}", e);
                 ready(Err(ErrorUnauthorized("Unimportant or expired token")))
             }
         }
