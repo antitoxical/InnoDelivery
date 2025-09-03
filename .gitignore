@@ -3,9 +3,9 @@
 /user_service/target/debug/build
 /user_service/target/debug/build/actix-web-*
 /user_service/target/debug/build/actix-*
-
+*.env
+*.env.*
 .env
-.env.*
 /user_service/target/debug/deps
 /target/debug/.fingerprint/
 /target/debug/build/
