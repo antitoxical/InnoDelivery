@@ -9,6 +9,7 @@ pub struct NewUser {
     pub phone_number: String,
     pub email: String,
     pub password: String,
+    pub role: String,
 }
 
 #[derive(AsChangeset, Debug, Deserialize, Serialize)]
@@ -31,3 +32,4 @@ pub struct AuthResponse {
     pub token: String,
     pub user_id: Uuid,
 }
+

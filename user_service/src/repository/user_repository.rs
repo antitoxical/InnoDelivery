@@ -5,9 +5,10 @@ use crate::schema::users::{
     self,
     dsl::{is_deleted, users as all_users},
 };
-use crate::services::auth_service::AuthError;
 use diesel::prelude::*;
 use uuid::Uuid;
+use diesel::prelude::*;
+
 
 pub fn create(
     conn: &mut PgConnection,

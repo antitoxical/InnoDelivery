@@ -1,0 +1,73 @@
+use crate::auth::middleware::JwtMiddleware;
+use crate::db;
+use crate::db::DbPool;
+use crate::dto::courier_dto::UpdateStatusDto;
+use crate::services::auth_service::AuthError;
+use crate::services::courier_service;
+use actix_web::{web, HttpResponse, Responder};
+use uuid::Uuid;
+
+pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
+    let user_id_str = &auth.claims.sub;
+
+    let user_id = match Uuid::parse_str(user_id_str) {
+        Ok(id) => id,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
+    };
+
+    let result = web::block(move || {
+        let mut conn = match db::get_conn_from_pool(&pool) {
+            Ok(connection) => connection,
+            Err(e) => return Err(AuthError::ConnectionError(e.to_string())),
+        };
+        courier_service::get_courier_profile(&mut conn, user_id)
+    })
+        .await;
+
+    match result {
+        Ok(Ok(profile)) => HttpResponse::Ok().json(profile),
+        Ok(Err(e)) => match e {
+            AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
+            AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
+                HttpResponse::NotFound().body("Courier profile not found")
+            }
+            _ => HttpResponse::InternalServerError().body(e.to_string()),
+        },
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+
+pub async fn update_courier_status(
+    pool: web::Data<DbPool>,
+    auth: JwtMiddleware,
+    update_data: web::Json<UpdateStatusDto>,
+) -> impl Responder {
+    let user_id_str = &auth.claims.sub;
+
+    let user_id = match Uuid::parse_str(user_id_str) {
+        Ok(id) => id,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
+    };
+
+    let result = web::block(move || {
+        let mut conn = match db::get_conn_from_pool(&pool) {
+            Ok(connection) => connection,
+            Err(e) => return Err(AuthError::ConnectionError(e.to_string())),
+        };
+        courier_service::update_courier_status(&mut conn, user_id, update_data.into_inner())
+    })
+        .await;
+
+    match result {
+        Ok(Ok(updated_status)) => HttpResponse::Ok().json(updated_status),
+        Ok(Err(e)) => match e {
+            AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
+            AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
+                HttpResponse::NotFound().body("Courier profile not found")
+            }
+            _ => HttpResponse::InternalServerError().body(e.to_string()),
+        },
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+    }
+}
+

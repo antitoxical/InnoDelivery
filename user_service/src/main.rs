@@ -12,6 +12,7 @@ use actix_web::{App, HttpServer, web};
 use db::{DbPool, create_db_pool};
 use handlers::auth_handler::{login_user, register_user};
 use handlers::user_handler::{delete_profile, get_profile, get_users, update_profile};
+use handlers::courier_handler::{get_courier_profile, update_courier_status};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -46,6 +47,11 @@ async fn main() -> std::io::Result<()> {
                     .route("/update", web::patch().to(update_profile))
                     .route("/delete", web::delete().to(delete_profile))
                     .route("/users", web::get().to(get_users)),
+            )
+            .service(
+                web::scope("/courier")
+                    .route("/profile", web::get().to(get_courier_profile))
+                    .route("/status", web::patch().to(update_courier_status)),
             )
     })
     .bind(("127.0.0.1", 8081))?
