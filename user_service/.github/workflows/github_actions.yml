@@ -1,0 +1,29 @@
+name: user service ci/cd pipeline
+
+on: [push]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality_check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run Clippy linter
+        run: cargo clippy -- -D warnings
+
+
