@@ -20,7 +20,7 @@ pub fn generate_jwt(user: &DbUser) -> Result<String, JwtError> {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(&CONFIG.jwt_secret.as_ref()),
+        &EncodingKey::from_secret(CONFIG.jwt_secret.as_ref()),
     )
 }
 
@@ -28,7 +28,7 @@ pub fn validate_jwt(token: &str) -> Result<Claims, JwtError> {
     let validation = Validation::default();
     let token_data = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(&CONFIG.jwt_secret.as_ref()),
+        &DecodingKey::from_secret(CONFIG.jwt_secret.as_ref()),
         &validation,
     )?;
     Ok(token_data.claims)
