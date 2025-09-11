@@ -1,9 +1,9 @@
 use crate::models::courier::{Courier, CourierStatus, NewCourier};
 use crate::models::user::User;
 use crate::schema::{couriers, users};
+use diesel::PgConnection;
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
-use diesel::PgConnection;
 use uuid::Uuid;
 
 pub fn create(conn: &mut PgConnection, new_courier: &NewCourier) -> Result<Courier, DieselError> {
@@ -32,4 +32,3 @@ pub fn update_status_by_user_id(
         .set(couriers::status.eq(new_status))
         .get_result::<Courier>(conn)
 }
-

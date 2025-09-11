@@ -11,10 +11,3 @@ pub struct CourierProfileResponse {
     pub status: CourierStatus,
     pub rating: f32,
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateStatusDto {
-    pub status: CourierStatus,
-}
-
-

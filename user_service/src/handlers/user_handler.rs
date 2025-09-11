@@ -4,7 +4,7 @@ use crate::db::DbPool;
 use crate::dto::user_dto::UpdateUser;
 use crate::services::auth_service::AuthError;
 use crate::services::user_service;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
 
 pub async fn get_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
@@ -20,7 +20,7 @@ pub async fn get_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl R
         };
         user_service::get_user_profile(&mut conn, user_id)
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(user)) => HttpResponse::Ok().json(user),
@@ -51,7 +51,7 @@ pub async fn update_profile(
         };
         user_service::update_user_profile(&mut conn, user_id, update_data.into_inner())
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(user)) => HttpResponse::Ok().json(user),
@@ -76,7 +76,7 @@ pub async fn delete_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> imp
         };
         user_service::soft_delete_user(&mut conn, user_id)
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(count)) if count > 0 => HttpResponse::NoContent().finish(),
@@ -97,7 +97,7 @@ pub async fn get_users(pool: web::Data<DbPool>) -> impl Responder {
         };
         user_service::get_all_users(&mut conn)
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(users)) => HttpResponse::Ok().json(users),
@@ -108,4 +108,3 @@ pub async fn get_users(pool: web::Data<DbPool>) -> impl Responder {
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
-

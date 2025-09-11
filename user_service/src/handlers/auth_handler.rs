@@ -2,7 +2,7 @@ use crate::db;
 use crate::db::DbPool;
 use crate::dto::user_dto::{LoginUser, NewUser as RegisterUserDto};
 use crate::services::auth_service::{self, AuthError};
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, web};
 
 pub async fn register_user(
     pool: web::Data<DbPool>,
@@ -15,7 +15,7 @@ pub async fn register_user(
         };
         auth_service::register(&mut conn, new_user_dto.into_inner())
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(user)) => HttpResponse::Created().json(user),
@@ -39,7 +39,7 @@ pub async fn login_user(
         };
         auth_service::login(&mut conn, login_user_dto.into_inner())
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(response)) => HttpResponse::Ok().json(response),
@@ -51,4 +51,3 @@ pub async fn login_user(
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
-

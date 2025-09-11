@@ -11,8 +11,8 @@ pub mod services;
 use actix_web::{App, HttpServer, web};
 use db::{DbPool, create_db_pool};
 use handlers::auth_handler::{login_user, register_user};
-use handlers::user_handler::{delete_profile, get_profile, get_users, update_profile};
 use handlers::courier_handler::{get_courier_profile, update_courier_status};
+use handlers::user_handler::{delete_profile, get_profile, get_users, update_profile};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

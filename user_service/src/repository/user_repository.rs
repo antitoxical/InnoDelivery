@@ -1,14 +1,11 @@
 use crate::dto::user_dto::UpdateUser as UpdateUserDto;
 use crate::models::user::{NewUser as DbNewUser, User as DbUser};
-use crate::schema::users::dsl::*;
 use crate::schema::users::{
     self,
     dsl::{is_deleted, users as all_users},
 };
 use diesel::prelude::*;
 use uuid::Uuid;
-use diesel::prelude::*;
-
 
 pub fn create(
     conn: &mut PgConnection,

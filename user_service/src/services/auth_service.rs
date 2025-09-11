@@ -4,8 +4,8 @@ use crate::models::courier::{CourierStatus, NewCourier};
 use crate::models::user::{NewUser as DbNewUser, User as DbUser};
 use crate::repository::{courier_repository, user_repository};
 use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
 };
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
@@ -91,26 +91,25 @@ pub fn register(
         role: role_str.to_string(),
     };
 
-    conn.transaction(|connection: &mut PgConnection| -> Result<DbUser, diesel::result::Error> {
-        let created_user = user_repository::create(connection, &db_new_user)?;
+    conn.transaction(
+        |connection: &mut PgConnection| -> Result<DbUser, diesel::result::Error> {
+            let created_user = user_repository::create(connection, &db_new_user)?;
 
-        if role_str == "courier" {
-            let new_courier = NewCourier {
-                user_id: created_user.id,
-                status: CourierStatus::Free,
-            };
-            courier_repository::create(connection, &new_courier)?;
-        }
+            if role_str == "courier" {
+                let new_courier = NewCourier {
+                    user_id: created_user.id,
+                    status: CourierStatus::Free,
+                };
+                courier_repository::create(connection, &new_courier)?;
+            }
 
-        Ok(created_user)
-    })
-        .map_err(AuthError::from)
+            Ok(created_user)
+        },
+    )
+    .map_err(AuthError::from)
 }
 
-pub fn login(
-    conn: &mut PgConnection,
-    login_data: LoginUserDto,
-) -> Result<AuthResponse, AuthError> {
+pub fn login(conn: &mut PgConnection, login_data: LoginUserDto) -> Result<AuthResponse, AuthError> {
     let user = user_repository::find_by_phone(conn, &login_data.phone_number)?;
 
     let parsed_hash = PasswordHash::new(&user.password)?;
@@ -118,7 +117,10 @@ pub fn login(
         .verify_password(login_data.password.as_bytes(), &parsed_hash)
         .is_err()
     {
-        tracing::warn!("Unsuccessful login attempt for phone: {}", login_data.phone_number);
+        tracing::warn!(
+            "Unsuccessful login attempt for phone: {}",
+            login_data.phone_number
+        );
         return Err(AuthError::InvalidCredentials);
     }
 
@@ -130,4 +132,3 @@ pub fn login(
         user_id: user.id,
     })
 }
-

@@ -1,10 +1,10 @@
 use crate::auth::middleware::JwtMiddleware;
 use crate::db;
 use crate::db::DbPool;
-use crate::dto::courier_dto::UpdateStatusDto;
+use crate::models::courier::CourierStatus;
 use crate::services::auth_service::AuthError;
 use crate::services::courier_service;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
 
 pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
@@ -22,7 +22,7 @@ pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -
         };
         courier_service::get_courier_profile(&mut conn, user_id)
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(profile)) => HttpResponse::Ok().json(profile),
@@ -40,8 +40,16 @@ pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -
 pub async fn update_courier_status(
     pool: web::Data<DbPool>,
     auth: JwtMiddleware,
-    update_data: web::Json<UpdateStatusDto>,
+    update_data: String,
 ) -> impl Responder {
+    let new_status = match update_data.trim().to_lowercase().as_str() {
+        "free" => CourierStatus::Free,
+        "busy" => CourierStatus::Busy,
+        _ => {
+            return HttpResponse::BadRequest()
+                .body("Invalid status value. Allowed values are 'Free' or 'Busy'.");
+        }
+    };
     let user_id_str = &auth.claims.sub;
 
     let user_id = match Uuid::parse_str(user_id_str) {
@@ -54,9 +62,9 @@ pub async fn update_courier_status(
             Ok(connection) => connection,
             Err(e) => return Err(AuthError::ConnectionError(e.to_string())),
         };
-        courier_service::update_courier_status(&mut conn, user_id, update_data.into_inner())
+        courier_service::update_courier_status(&mut conn, user_id, new_status)
     })
-        .await;
+    .await;
 
     match result {
         Ok(Ok(updated_status)) => HttpResponse::Ok().json(updated_status),
@@ -70,4 +78,3 @@ pub async fn update_courier_status(
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
-

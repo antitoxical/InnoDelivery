@@ -1,14 +1,14 @@
-use crate::schema::couriers;
 use crate::models::user::User;
-use diesel::prelude::*;
-use diesel::{AsExpression, FromSqlRow};
-use diesel::deserialize::{self, FromSql};
-use diesel::serialize::{self, ToSql, Output};
-use diesel::sql_types::Text;
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
+use crate::schema::couriers;
 use chrono::NaiveDateTime;
+use diesel::deserialize::{self, FromSql};
+use diesel::prelude::*;
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::Text;
+use diesel::{AsExpression, FromSqlRow};
+use serde::{Deserialize, Serialize};
 use std::io::Write;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Text)]
@@ -63,4 +63,3 @@ pub struct NewCourier {
     pub user_id: Uuid,
     pub status: CourierStatus,
 }
-
