@@ -27,6 +27,11 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Run tests
-        run: cargo test --verbose
+        run: |
+          cd services/${{ inputs.user_service }}
+          cargo --version
+          cargo test
+          env:
+          DATABASE_URL: postgres://admin:admin_password@localhost:5433/inno_delivery
 
 

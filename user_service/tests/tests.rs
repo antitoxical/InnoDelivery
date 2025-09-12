@@ -90,7 +90,6 @@ mod unit_tests {
             updated_at: now,
         };
 
-        // Логика, которая находится внутри вашего courier_service
         let dto = CourierProfileResponse {
             id: user.id,
             name: user.name,
