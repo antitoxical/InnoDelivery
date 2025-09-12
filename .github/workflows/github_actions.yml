@@ -28,7 +28,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cd services/${{ inputs.user_service }}
+          cd user_service/tests/${{ inputs.user_service }}
           cargo --version
           cargo test
           env:
