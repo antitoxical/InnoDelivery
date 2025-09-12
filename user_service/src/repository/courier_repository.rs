@@ -7,7 +7,9 @@ use diesel::result::Error as DieselError;
 use uuid::Uuid;
 
 pub fn create(conn: &mut PgConnection, new_courier: &NewCourier) -> Result<Courier, DieselError> {
-    diesel::insert_into(couriers::table).values(new_courier).get_result(conn)
+    diesel::insert_into(couriers::table)
+        .values(new_courier)
+        .get_result(conn)
 }
 
 pub fn find_courier_by_user_id(

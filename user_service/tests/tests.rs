@@ -1,13 +1,12 @@
 #![cfg(test)]
 
 mod unit_tests {
+    use chrono::Utc;
     use user_service::dto::courier_dto::CourierProfileResponse;
     use user_service::models::courier::{Courier, CourierStatus};
     use user_service::models::user::User;
     use user_service::services::auth_service::AuthError;
-    use chrono::Utc;
     use uuid::Uuid;
-
 
     #[test]
     /// Тест 1: Проверка форматирования сообщений об ошибках.
@@ -15,7 +14,10 @@ mod unit_tests {
         let db_error = AuthError::DatabaseError("Connection failed".to_string());
         let validation_error = AuthError::ValidationError("Email is invalid".to_string());
         assert_eq!(format!("{}", db_error), "Database error: Connection failed");
-        assert_eq!(format!("{}", validation_error), "Validation error: Email is invalid");
+        assert_eq!(
+            format!("{}", validation_error),
+            "Validation error: Email is invalid"
+        );
     }
 
     #[test]
@@ -33,7 +35,11 @@ mod unit_tests {
         let parsed_hash = PasswordHash::new(&password_hash_str).unwrap();
 
         assert!(argon2.verify_password(password, &parsed_hash).is_ok());
-        assert!(argon2.verify_password(b"wrong_password", &parsed_hash).is_err());
+        assert!(
+            argon2
+                .verify_password(b"wrong_password", &parsed_hash)
+                .is_err()
+        );
     }
 
     #[test]
@@ -51,11 +57,8 @@ mod unit_tests {
     #[test]
     /// Тест 7: Проверка конвертации ошибки Argon2 в AuthError.
     fn test_argon2_error_to_auth_error_conversion() {
-        // Создаем "искусственную" ошибку от Argon2
         let argon2_error = argon2::password_hash::Error::Password;
         let auth_error: AuthError = argon2_error.into();
-
-        // Проверяем, что она правильно конвертируется в наш тип
         assert!(matches!(auth_error, AuthError::PasswordHashingError(_)));
         assert!(format!("{}", auth_error).contains("Could not hash password"));
     }
@@ -103,4 +106,3 @@ mod unit_tests {
         assert_eq!(dto.rating, 4.8);
     }
 }
-
