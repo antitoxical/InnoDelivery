@@ -13,9 +13,6 @@ lazy_static! {
 
         let jwt_secret = env::var("JWT_SECRET").expect("DATABASE_URL must be set");
 
-        Config {
-            database_url,
-            jwt_secret,
-        }
+        Config { database_url, jwt_secret }
     };
 }

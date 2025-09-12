@@ -13,15 +13,8 @@ pub struct Claims {
 
 pub fn generate_jwt(user: &DbUser) -> Result<String, JwtError> {
     let expiration = Utc::now() + chrono::Duration::hours(24);
-    let claims = Claims {
-        sub: user.id.to_string(),
-        exp: expiration.timestamp() as usize,
-    };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(CONFIG.jwt_secret.as_ref()),
-    )
+    let claims = Claims { sub: user.id.to_string(), exp: expiration.timestamp() as usize };
+    encode(&Header::default(), &claims, &EncodingKey::from_secret(CONFIG.jwt_secret.as_ref()))
 }
 
 pub fn validate_jwt(token: &str) -> Result<Claims, JwtError> {

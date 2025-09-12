@@ -510,6 +510,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deunicode"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abd57806937c9cc163efc8ea3910e00a62e2aeb0b8119f1793a978088f8f6b04"
+
+[[package]]
 name = "diesel"
 version = "2.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -609,6 +615,17 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "fake"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d391ba4af7f1d93f01fcf7b2f29e2bc9348e109dfdbf4dcbdc51dfa38dab0b6"
+dependencies = [
+ "chrono",
+ "deunicode",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "flate2"
@@ -1812,6 +1829,7 @@ dependencies = [
  "chrono",
  "diesel",
  "dotenv",
+ "fake",
  "jsonwebtoken",
  "lazy_static",
  "rand 0.8.5",

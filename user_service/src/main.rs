@@ -1,12 +1,12 @@
-pub mod auth;
-pub mod config;
-pub mod db;
-pub mod dto;
-pub mod handlers;
-pub mod models;
-pub mod repository;
-pub mod schema;
-pub mod services;
+mod auth;
+mod config;
+mod db;
+mod dto;
+mod handlers;
+mod models;
+mod repository;
+mod schema;
+mod services;
 
 use actix_web::{App, HttpServer, web};
 use db::{DbPool, create_db_pool};

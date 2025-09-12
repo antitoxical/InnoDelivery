@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-actix-web = "4.0.1"
+actix-web = {version = "4.0.1", features = ["macros"]}
 dotenv = "0.15.0"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
@@ -17,3 +17,4 @@ diesel = { version = "2.1.0", features = ["postgres", "r2d2", "uuid", "chrono"] 
 chrono = { version = "0.4.23", features = ["serde"] }
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
 lazy_static = "1.4.0"
+fake = { version = "2.9", features = ["chrono"] }
