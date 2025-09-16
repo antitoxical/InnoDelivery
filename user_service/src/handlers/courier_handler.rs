@@ -1,4 +1,4 @@
-use crate::auth::middleware::JwtMiddleware;
+use crate::auth::guard::CourierGuard;
 use crate::db;
 use crate::db::DbPool;
 use crate::models::courier::CourierStatus;
@@ -7,10 +7,8 @@ use crate::services::courier_service;
 use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
 
-pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
-    let user_id_str = &auth.claims.sub;
-
-    let user_id = match Uuid::parse_str(user_id_str) {
+pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: CourierGuard) -> impl Responder {
+    let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
     };
@@ -39,7 +37,7 @@ pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -
 
 pub async fn update_courier_status(
     pool: web::Data<DbPool>,
-    auth: JwtMiddleware,
+    auth: CourierGuard,
     update_data: String,
 ) -> impl Responder {
     let new_status = match update_data.trim().to_lowercase().as_str() {
@@ -50,9 +48,7 @@ pub async fn update_courier_status(
                 .body("Invalid status value. Allowed values are 'Free' or 'Busy'.");
         }
     };
-    let user_id_str = &auth.claims.sub;
-
-    let user_id = match Uuid::parse_str(user_id_str) {
+    let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
     };

@@ -1,4 +1,4 @@
-use crate::auth::middleware::JwtMiddleware;
+use crate::auth::guard::UserGuard;
 use crate::db;
 use crate::db::DbPool;
 use crate::dto::user_dto::UpdateUser;
@@ -7,7 +7,7 @@ use crate::services::user_service;
 use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
 
-pub async fn get_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
+pub async fn get_profile(pool: web::Data<DbPool>, auth: UserGuard) -> impl Responder {
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
@@ -37,7 +37,7 @@ pub async fn get_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl R
 
 pub async fn update_profile(
     pool: web::Data<DbPool>,
-    auth: JwtMiddleware,
+    auth: UserGuard,
     update_data: web::Json<UpdateUser>,
 ) -> impl Responder {
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
@@ -63,7 +63,7 @@ pub async fn update_profile(
     }
 }
 
-pub async fn delete_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> impl Responder {
+pub async fn delete_profile(pool: web::Data<DbPool>, auth: UserGuard) -> impl Responder {
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
@@ -89,7 +89,7 @@ pub async fn delete_profile(pool: web::Data<DbPool>, auth: JwtMiddleware) -> imp
     }
 }
 
-pub async fn get_users(pool: web::Data<DbPool>) -> impl Responder {
+pub async fn get_users(pool: web::Data<DbPool> /*, auth: AdminGuard*/) -> impl Responder {
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
             Ok(connection) => connection,

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Claims {
     pub sub: String,
     pub exp: usize,
+    pub role: String,
 }
 
 pub fn generate_jwt(user: &DbUser) -> Result<String, JwtError> {
@@ -16,6 +17,7 @@ pub fn generate_jwt(user: &DbUser) -> Result<String, JwtError> {
     let claims = Claims {
         sub: user.id.to_string(),
         exp: expiration.timestamp() as usize,
+        role: user.role.clone(),
     };
     encode(
         &Header::default(),
