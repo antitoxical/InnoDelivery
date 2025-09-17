@@ -1,3 +1,317 @@
+#![cfg(test)]
+mod integration_tests {
+    use actix_web::{http::StatusCode, test, web, App};
+    use diesel::RunQueryDsl;
+    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+    use fake::{faker::{internet::en::SafeEmail, phone_number::en::PhoneNumber}, Fake};
+    use serde_json::json;
+    use user_service::{
+        config::{config_auth, config_courier, config_user},
+        db::{create_db_pool, DbPool},
+        dto::user_dto::AuthResponse,
+        models::user::User as DbUser,
+    };
+
+    pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+    #[actix_web::test]
+    /// Test 1: Successful registration, entrance and profile for a user.
+    async fn test_user_happy_path() {
+        dotenv::dotenv().ok();
+        
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let phone: String = PhoneNumber().fake();
+        let email: String = SafeEmail().fake();
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Test User", "phone_number": &phone, "email": &email,
+            "password": "password123", "role": "user"
+        }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = test::TestRequest::post()
+            .uri("/auth/login")
+            .set_json(&json!({ "phone_number": &phone, "password": "password123" }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        let auth: AuthResponse = test::read_body_json(resp).await;
+        let token = auth.token;
+
+        let req = test::TestRequest::get()
+            .uri("/api/api/profile")
+            .insert_header(("Authorization", format!("Bearer {}", token)))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK, "Get user profile should be successful");
+        let profile: DbUser = test::read_body_json(resp).await;
+        assert_eq!(profile.email, email);
+    }
+
+    #[actix_web::test]
+    /// Test 2: Registration should end with an error of 409 conflict when trying to use the existing email.
+    async fn test_registration_fails_on_duplicate_email() {
+        dotenv::dotenv().ok();
+        
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let phone1: String = PhoneNumber().fake();
+        let phone2: String = PhoneNumber().fake();
+        let email: String = SafeEmail().fake();
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "First User", "phone_number": phone1, "email": &email,
+            "password": "password123", "role": "user"
+        }))
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Second User", "phone_number": phone2, "email": &email,
+            "password": "password456", "role": "user"
+        }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+    }
+
+    #[actix_web::test]
+    /// Test 3: Successful registration and login of the courier.
+    async fn test_courier_registration_and_login() {
+        dotenv::dotenv().ok();
+        
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let phone: String = PhoneNumber().fake();
+        let email: String = SafeEmail().fake();
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Test Courier", "phone_number": &phone, "email": &email,
+            "password": "courier_pass", "role": "courier"
+        }))
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+
+        let req = test::TestRequest::post()
+            .uri("/auth/login")
+            .set_json(&json!({ "phone_number": &phone, "password": "courier_pass" }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        let auth: AuthResponse = test::read_body_json(resp).await;
+        assert_eq!(auth.user_id.to_string().len(), 36);
+    }
+
+    #[actix_web::test]
+    /// Test 4: An unsuccessful login with the wrong password.
+    async fn test_login_with_wrong_password() {
+        dotenv::dotenv().ok();
+
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let phone: String = PhoneNumber().fake();
+        let email: String = SafeEmail().fake();
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Test User", "phone_number": &phone, "email": &email,
+            "password": "correct_password", "role": "user"
+        }))
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+
+        let req = test::TestRequest::post()
+            .uri("/auth/login")
+            .set_json(&json!({ "phone_number": &phone, "password": "wrong_password" }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[actix_web::test]
+    /// Test 5: An attempt to access the protected endpoint without token.
+    async fn test_unauthorized_access_to_protected_endpoint() {
+        dotenv::dotenv().ok();
+
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let req = test::TestRequest::get()
+            .uri("/api/api/profile")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[actix_web::test]
+    /// Test 6: An attempt to access the endpoint courier with a regular user token.
+    async fn test_user_access_to_courier_endpoint() {
+        dotenv::dotenv().ok();
+
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let phone: String = PhoneNumber().fake();
+        let email: String = SafeEmail().fake();
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Test User", "phone_number": &phone, "email": &email,
+            "password": "password123", "role": "user"
+        }))
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+
+        let req = test::TestRequest::post()
+            .uri("/auth/login")
+            .set_json(&json!({ "phone_number": &phone, "password": "password123" }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        let auth: AuthResponse = test::read_body_json(resp).await;
+        let token = auth.token;
+
+        let req = test::TestRequest::get()
+            .uri("/courier/profile")
+            .insert_header(("Authorization", format!("Bearer {}", token)))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    /// Test 7: Registration with invalid data.
+    async fn test_registration_with_invalid_data() {
+        dotenv::dotenv().ok();
+
+        let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
+        {
+            let mut conn = pool.get().expect("Failed to get connection for cleaning");
+            conn.run_pending_migrations(MIGRATIONS).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+        }
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .configure(config_auth)
+                .service(web::scope("/api").configure(config_user))
+                .service(web::scope("/courier").configure(config_courier)),
+        ).await;
+
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .set_json(&json!({
+            "name": "Test User", "phone_number": "1234567890", "email": "test@example.com",
+            "password": "password123", "role": "invalid_role"
+        }))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+}
+
 mod unit_tests {
     use chrono::Utc;
     use jsonwebtoken::{DecodingKey, Validation, decode};

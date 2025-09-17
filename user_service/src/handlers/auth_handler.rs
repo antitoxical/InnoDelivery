@@ -21,7 +21,13 @@ pub async fn register_user(
         Ok(Ok(user)) => HttpResponse::Created().json(user),
         Ok(Err(e)) => match e {
             AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
-            AuthError::ValidationError(msg) => HttpResponse::BadRequest().body(msg),
+            AuthError::ValidationError(msg) => {
+                if msg.contains("already in use") {
+                    HttpResponse::Conflict().body(msg)
+                } else {
+                    HttpResponse::BadRequest().body(msg)
+                }
+            },
             _ => HttpResponse::InternalServerError().body(e.to_string()),
         },
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
