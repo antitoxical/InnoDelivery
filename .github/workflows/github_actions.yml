@@ -32,6 +32,6 @@ jobs:
           cargo --version
           cargo test
         env:
-          DATABASE_URL: postgres://admin:admin_password@localhost:5433/inno_delivery
+          DATABASE_URL: postgres://admin:admin_password@localhost:5434/inno_delivery_test
 
 
