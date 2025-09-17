@@ -393,18 +393,6 @@ mod unit_tests {
         }
     }
 
-    /*fn create_test_courier(user_id: Uuid) -> Courier {
-        let now = Utc::now().naive_utc();
-        Courier {
-            id: Uuid::new_v4(),
-            user_id,
-            status: CourierStatus::Free,
-            rating: 0.0,
-            created_at: now,
-            updated_at: now,
-        }
-    }*/
-
     #[test]
     /// Test 1: Checking the formatting of error messages.
     fn test_auth_error_display_formats() {
