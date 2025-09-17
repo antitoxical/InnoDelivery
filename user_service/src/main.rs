@@ -9,8 +9,8 @@ mod schema;
 mod services;
 
 use actix_web::{App, HttpServer, web};
-use db::{DbPool, create_db_pool};
 use config::{config_auth, config_courier, config_user};
+use db::{DbPool, create_db_pool};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

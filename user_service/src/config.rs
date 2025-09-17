@@ -52,4 +52,3 @@ pub fn config_courier(cfg: &mut web::ServiceConfig) {
             .route("/status", web::patch().to(update_courier_status)),
     );
 }
-

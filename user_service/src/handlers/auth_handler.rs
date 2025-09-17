@@ -27,7 +27,7 @@ pub async fn register_user(
                 } else {
                     HttpResponse::BadRequest().body(msg)
                 }
-            },
+            }
             _ => HttpResponse::InternalServerError().body(e.to_string()),
         },
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),

@@ -1,13 +1,16 @@
 #![cfg(test)]
 mod integration_tests {
-    use actix_web::{http::StatusCode, test, web, App};
+    use actix_web::{App, http::StatusCode, test, web};
     use diesel::RunQueryDsl;
-    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-    use fake::{faker::{internet::en::SafeEmail, phone_number::en::PhoneNumber}, Fake};
+    use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+    use fake::{
+        Fake,
+        faker::{internet::en::SafeEmail, phone_number::en::PhoneNumber},
+    };
     use serde_json::json;
     use user_service::{
         config::{config_auth, config_courier, config_user},
-        db::{create_db_pool, DbPool},
+        db::{DbPool, create_db_pool},
         dto::user_dto::AuthResponse,
         models::user::User as DbUser,
     };
@@ -18,15 +21,19 @@ mod integration_tests {
     /// Test 1: Successful registration, entrance and profile for a user.
     async fn test_user_happy_path() {
         dotenv::dotenv().ok();
-        
+
         let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
 
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -35,7 +42,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let phone: String = PhoneNumber().fake();
         let email: String = SafeEmail().fake();
@@ -43,9 +51,9 @@ mod integration_tests {
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Test User", "phone_number": &phone, "email": &email,
-            "password": "password123", "role": "user"
-        }))
+                "name": "Test User", "phone_number": &phone, "email": &email,
+                "password": "password123", "role": "user"
+            }))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
@@ -64,7 +72,11 @@ mod integration_tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
 
-        assert_eq!(resp.status(), StatusCode::OK, "Get user profile should be successful");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "Get user profile should be successful"
+        );
         let profile: DbUser = test::read_body_json(resp).await;
         assert_eq!(profile.email, email);
     }
@@ -73,15 +85,19 @@ mod integration_tests {
     /// Test 2: Registration should end with an error of 409 conflict when trying to use the existing email.
     async fn test_registration_fails_on_duplicate_email() {
         dotenv::dotenv().ok();
-        
+
         let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
 
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -90,7 +106,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let phone1: String = PhoneNumber().fake();
         let phone2: String = PhoneNumber().fake();
@@ -99,18 +116,21 @@ mod integration_tests {
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "First User", "phone_number": phone1, "email": &email,
-            "password": "password123", "role": "user"
-        }))
+                "name": "First User", "phone_number": phone1, "email": &email,
+                "password": "password123", "role": "user"
+            }))
             .to_request();
-        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+        assert_eq!(
+            test::call_service(&app, req).await.status(),
+            StatusCode::CREATED
+        );
 
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Second User", "phone_number": phone2, "email": &email,
-            "password": "password456", "role": "user"
-        }))
+                "name": "Second User", "phone_number": phone2, "email": &email,
+                "password": "password456", "role": "user"
+            }))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::CONFLICT);
@@ -120,15 +140,19 @@ mod integration_tests {
     /// Test 3: Successful registration and login of the courier.
     async fn test_courier_registration_and_login() {
         dotenv::dotenv().ok();
-        
+
         let pool: DbPool = create_db_pool().expect("Failed to create test DB pool");
 
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -137,7 +161,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let phone: String = PhoneNumber().fake();
         let email: String = SafeEmail().fake();
@@ -145,11 +170,14 @@ mod integration_tests {
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Test Courier", "phone_number": &phone, "email": &email,
-            "password": "courier_pass", "role": "courier"
-        }))
+                "name": "Test Courier", "phone_number": &phone, "email": &email,
+                "password": "courier_pass", "role": "courier"
+            }))
             .to_request();
-        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+        assert_eq!(
+            test::call_service(&app, req).await.status(),
+            StatusCode::CREATED
+        );
 
         let req = test::TestRequest::post()
             .uri("/auth/login")
@@ -169,8 +197,12 @@ mod integration_tests {
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -179,7 +211,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let phone: String = PhoneNumber().fake();
         let email: String = SafeEmail().fake();
@@ -187,11 +220,14 @@ mod integration_tests {
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Test User", "phone_number": &phone, "email": &email,
-            "password": "correct_password", "role": "user"
-        }))
+                "name": "Test User", "phone_number": &phone, "email": &email,
+                "password": "correct_password", "role": "user"
+            }))
             .to_request();
-        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+        assert_eq!(
+            test::call_service(&app, req).await.status(),
+            StatusCode::CREATED
+        );
 
         let req = test::TestRequest::post()
             .uri("/auth/login")
@@ -210,8 +246,12 @@ mod integration_tests {
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -220,7 +260,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let req = test::TestRequest::get()
             .uri("/api/api/profile")
@@ -238,8 +279,12 @@ mod integration_tests {
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -248,7 +293,8 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let phone: String = PhoneNumber().fake();
         let email: String = SafeEmail().fake();
@@ -256,11 +302,14 @@ mod integration_tests {
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Test User", "phone_number": &phone, "email": &email,
-            "password": "password123", "role": "user"
-        }))
+                "name": "Test User", "phone_number": &phone, "email": &email,
+                "password": "password123", "role": "user"
+            }))
             .to_request();
-        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::CREATED);
+        assert_eq!(
+            test::call_service(&app, req).await.status(),
+            StatusCode::CREATED
+        );
 
         let req = test::TestRequest::post()
             .uri("/auth/login")
@@ -287,8 +336,12 @@ mod integration_tests {
         {
             let mut conn = pool.get().expect("Failed to get connection for cleaning");
             conn.run_pending_migrations(MIGRATIONS).ok();
-            diesel::sql_query("TRUNCATE TABLE couriers CASCADE").execute(&mut conn).ok();
-            diesel::sql_query("TRUNCATE TABLE users CASCADE").execute(&mut conn).ok();
+            diesel::sql_query("TRUNCATE TABLE couriers CASCADE")
+                .execute(&mut conn)
+                .ok();
+            diesel::sql_query("TRUNCATE TABLE users CASCADE")
+                .execute(&mut conn)
+                .ok();
         }
 
         let app = test::init_service(
@@ -297,19 +350,19 @@ mod integration_tests {
                 .configure(config_auth)
                 .service(web::scope("/api").configure(config_user))
                 .service(web::scope("/courier").configure(config_courier)),
-        ).await;
+        )
+        .await;
 
         let req = test::TestRequest::post()
             .uri("/auth/register")
             .set_json(&json!({
-            "name": "Test User", "phone_number": "1234567890", "email": "test@example.com",
-            "password": "password123", "role": "invalid_role"
-        }))
+                "name": "Test User", "phone_number": "1234567890", "email": "test@example.com",
+                "password": "password123", "role": "invalid_role"
+            }))
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
-
 }
 
 mod unit_tests {
