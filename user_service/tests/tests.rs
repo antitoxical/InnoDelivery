@@ -1,6 +1,7 @@
 #![cfg(test)]
 mod integration_tests {
     use actix_web::{App, http::StatusCode, test, web};
+    use chrono::NaiveDateTime;
     use diesel::RunQueryDsl;
     use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
     use fake::{
@@ -8,15 +9,12 @@ mod integration_tests {
         faker::{internet::en::SafeEmail, phone_number::en::PhoneNumber},
     };
     use serde_json::json;
-    use chrono::NaiveDateTime;
     use user_service::{
         config::{config_auth, config_courier, config_user},
         db::{DbPool, create_db_pool},
         dto::user_dto::AuthResponse,
         models::user::User as DbUser,
-
     };
-
 
     pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
@@ -369,16 +367,16 @@ mod integration_tests {
 }
 
 mod unit_tests {
-    use jsonwebtoken::{decode, DecodingKey, Validation};
-    use user_service::auth::jwt::{generate_jwt, validate_jwt, Claims};
-    use user_service::models::user::User;
-    use user_service::models::courier::{CourierStatus};
-    use user_service::models::courier::Courier;
-    use user_service::services::auth_service::AuthError;
     use chrono::{Duration, Utc};
+    use jsonwebtoken::{DecodingKey, Validation, decode};
+    use user_service::auth::jwt::{Claims, generate_jwt, validate_jwt};
+    use user_service::models::courier::Courier;
+    use user_service::models::courier::CourierStatus;
+    use user_service::models::user::User;
+    use user_service::services::auth_service::AuthError;
     use uuid::Uuid;
 
-    fn create_test_user(role : &str) -> User {
+    fn create_test_user(role: &str) -> User {
         let now = Utc::now().naive_utc();
         User {
             id: Uuid::new_v4(),
@@ -404,7 +402,6 @@ mod unit_tests {
         }
     }
 
-
     #[test]
     /// Test 1: Checking the logic of hashing password.
     fn test_password_hashing_and_verification() {
@@ -420,7 +417,11 @@ mod unit_tests {
         let parsed_hash = PasswordHash::new(&password_hash_str).unwrap();
 
         assert!(argon2.verify_password(password, &parsed_hash).is_ok());
-        assert!(argon2.verify_password(b"wrong_password", &parsed_hash).is_err());
+        assert!(
+            argon2
+                .verify_password(b"wrong_password", &parsed_hash)
+                .is_err()
+        );
     }
 
     #[test]
@@ -515,7 +516,7 @@ mod unit_tests {
 
     #[test]
     /// Test 12.1: CourierGuard blocks user with 'user' role.
-    fn test_courier_guard_logic_blocks_user_role(){
+    fn test_courier_guard_logic_blocks_user_role() {
         let claims = create_test_claims(Uuid::new_v4().to_string(), "user".to_string(), 3600);
         assert_ne!(claims.role, "courier");
     }
@@ -523,7 +524,6 @@ mod unit_tests {
     #[test]
     /// Test 13: JWT validation fails for invalid signature.
     fn test_jwt_validation_fails_for_invalid_signature() {
-
         dotenv::dotenv().ok();
         let user = create_test_user("user");
         let token = generate_jwt(&user).unwrap();
@@ -534,7 +534,10 @@ mod unit_tests {
 
         let result = decode::<Claims>(&token, &decoding_key, &validation);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err().kind(), jsonwebtoken::errors::ErrorKind::InvalidSignature));
+        assert!(matches!(
+            result.unwrap_err().kind(),
+            jsonwebtoken::errors::ErrorKind::InvalidSignature
+        ));
     }
 
     #[test]
@@ -611,7 +614,6 @@ mod unit_tests {
         let courier = create_test_user("courier");
         assert!(courier.role == "user" || courier.role == "courier");
     }
-
 
     #[test]
     /// Test 23: created_at and updated_at update correctly
