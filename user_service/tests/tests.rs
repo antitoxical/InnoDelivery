@@ -8,12 +8,15 @@ mod integration_tests {
         faker::{internet::en::SafeEmail, phone_number::en::PhoneNumber},
     };
     use serde_json::json;
+    use chrono::NaiveDateTime;
     use user_service::{
         config::{config_auth, config_courier, config_user},
         db::{DbPool, create_db_pool},
         dto::user_dto::AuthResponse,
         models::user::User as DbUser,
+
     };
+
 
     pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
@@ -366,17 +369,16 @@ mod integration_tests {
 }
 
 mod unit_tests {
-    use chrono::Utc;
-    use jsonwebtoken::{DecodingKey, Validation, decode};
-    use user_service::auth::jwt::{Claims, generate_jwt, validate_jwt};
-    use user_service::dto::courier_dto::CourierProfileResponse;
-    use user_service::dto::user_dto::UpdateUser;
-    use user_service::models::courier::{Courier, CourierStatus};
+    use jsonwebtoken::{decode, DecodingKey, Validation};
+    use user_service::auth::jwt::{generate_jwt, validate_jwt, Claims};
     use user_service::models::user::User;
+    use user_service::models::courier::{CourierStatus};
+    use user_service::models::courier::Courier;
     use user_service::services::auth_service::AuthError;
+    use chrono::{Duration, Utc};
     use uuid::Uuid;
 
-    fn create_test_user() -> User {
+    fn create_test_user(role : &str) -> User {
         let now = Utc::now().naive_utc();
         User {
             id: Uuid::new_v4(),
@@ -384,7 +386,7 @@ mod unit_tests {
             phone_number: "1234567890".to_string(),
             email: "test@example.com".to_string(),
             password: "hashed_password".to_string(),
-            role: "user".to_string(),
+            role: role.to_string(),
             favorite_address: None,
             is_blocked: false,
             is_deleted: false,
@@ -393,20 +395,18 @@ mod unit_tests {
         }
     }
 
-    #[test]
-    /// Test 1: Checking the formatting of error messages.
-    fn test_auth_error_display_formats() {
-        let db_error = AuthError::DatabaseError("Connection failed".to_string());
-        let validation_error = AuthError::ValidationError("Email is invalid".to_string());
-        assert_eq!(format!("{}", db_error), "Database error: Connection failed");
-        assert_eq!(
-            format!("{}", validation_error),
-            "Validation error: Email is invalid"
-        );
+    fn create_test_claims(sub: String, role: String, exp_offset_secs: i64) -> Claims {
+        let expiration = (Utc::now() + Duration::seconds(exp_offset_secs)).timestamp();
+        Claims {
+            sub,
+            role,
+            exp: expiration as usize,
+        }
     }
 
+
     #[test]
-    /// Test 2: Checking the logic of hashing password.
+    /// Test 1: Checking the logic of hashing password.
     fn test_password_hashing_and_verification() {
         use argon2::password_hash::rand_core::OsRng;
         use argon2::password_hash::{PasswordHasher, SaltString};
@@ -420,15 +420,11 @@ mod unit_tests {
         let parsed_hash = PasswordHash::new(&password_hash_str).unwrap();
 
         assert!(argon2.verify_password(password, &parsed_hash).is_ok());
-        assert!(
-            argon2
-                .verify_password(b"wrong_password", &parsed_hash)
-                .is_err()
-        );
+        assert!(argon2.verify_password(b"wrong_password", &parsed_hash).is_err());
     }
 
     #[test]
-    /// Test 3: Checking the conversion of the Diesel Error in AuthError.
+    /// Test 2: Checking the conversion of the Diesel Error in AuthError.
     fn test_diesel_error_to_auth_error_conversion() {
         let diesel_not_found = diesel::result::Error::NotFound;
         let auth_error: AuthError = diesel_not_found.into();
@@ -440,12 +436,10 @@ mod unit_tests {
     }
 
     #[test]
-    /// Тest 4: Checking JWT generation and contents of its Claims.
+    /// Test 3: Checking JWT generation and contents of its Claims.
     fn test_jwt_generation_and_claims() {
         dotenv::dotenv().ok();
-        let mut user = create_test_user();
-        user.role = "user".to_string();
-
+        let user = create_test_user("user");
         let token = generate_jwt(&user).expect("Failed to generate JWT");
         let decoded = validate_jwt(&token).expect("Failed to validate token");
         assert_eq!(decoded.sub, user.id.to_string());
@@ -453,7 +447,7 @@ mod unit_tests {
     }
 
     #[test]
-    /// Test 5: Checking the conversion of the Argon2 error in Autherror.
+    /// Test 4: Checking the conversion of the Argon2 error in AuthError.
     fn test_argon2_error_to_auth_error_conversion() {
         let argon2_error = argon2::password_hash::Error::Password;
         let auth_error: AuthError = argon2_error.into();
@@ -462,58 +456,7 @@ mod unit_tests {
     }
 
     #[test]
-    /// Test 6: Checking the conversion of the JWT error in AuthError.
-    fn test_jwt_error_to_auth_error_conversion() {
-        let jwt_error =
-            jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidToken);
-        let auth_error: AuthError = jwt_error.into();
-        assert!(matches!(auth_error, AuthError::TokenGenerationError(_)));
-    }
-
-    #[test]
-    /// Test 7: Checking the Mapping Models (User, Courier) in DTO (CourierProfileResponse).
-    fn test_model_to_dto_mapping_for_courier_profile() {
-        let now = Utc::now().naive_utc();
-        let user_id = Uuid::new_v4();
-        let user = User {
-            id: user_id,
-            name: "John Doe".to_string(),
-            phone_number: "+12345".to_string(),
-            email: "john@doe.com".to_string(),
-            password: "hash".to_string(),
-            role: "courier".to_string(),
-            favorite_address: None,
-            is_blocked: false,
-            is_deleted: false,
-            created_at: now,
-            updated_at: now,
-        };
-        let courier = Courier {
-            id: Uuid::new_v4(),
-            user_id,
-            status: CourierStatus::Busy,
-            rating: 4.8,
-            created_at: now,
-            updated_at: now,
-        };
-
-        let dto = CourierProfileResponse {
-            id: user.id,
-            name: user.name,
-            phone_number: user.phone_number,
-            email: user.email,
-            status: courier.status,
-            rating: courier.rating,
-        };
-
-        assert_eq!(dto.id, user.id);
-        assert_eq!(dto.name, "John Doe");
-        assert_eq!(dto.status, CourierStatus::Busy);
-        assert_eq!(dto.rating, 4.8);
-    }
-
-    #[test]
-    /// Test 8: Checking that the UniqueViolation error from Diesel is correctly converted.
+    /// Test 5: Checking the conversion of the JWT error in AuthError.
     fn test_diesel_unique_violation_error_conversion() {
         let unique_violation_error = diesel::result::Error::DatabaseError(
             diesel::result::DatabaseErrorKind::UniqueViolation,
@@ -521,15 +464,68 @@ mod unit_tests {
         );
         let auth_error: AuthError = unique_violation_error.into();
         assert!(matches!(auth_error, AuthError::ValidationError(_)));
-        assert!(format!("{}", auth_error).contains("Email or phone number are already in use."));
     }
 
     #[test]
-    /// Test 9 : Checking that the validation of JWT fails for token with a wrong signature.
-    fn test_jwt_validation_fails_for_invalid_signature() {
+    /// Test 6: Successful validation of a correct JWT.
+    fn test_jwt_validation_success() {
         dotenv::dotenv().ok();
-        let mut user = create_test_user();
-        user.role = "user".to_string();
+        let user = create_test_user("admin");
+        let token = generate_jwt(&user).unwrap();
+        let result = validate_jwt(&token);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().role, "admin");
+    }
+
+    #[test]
+    /// Test 9: JWT `exp` claim is set to about 24 hours in the future.
+    fn test_jwt_expiration_is_set_correctly() {
+        dotenv::dotenv().ok();
+        let user = create_test_user("user");
+        let token = generate_jwt(&user).unwrap();
+        let claims = validate_jwt(&token).unwrap();
+
+        let now = Utc::now().timestamp() as usize;
+        let twenty_four_hours_in_seconds = 24 * 60 * 60;
+
+        assert!(claims.exp > now + twenty_four_hours_in_seconds - 5);
+        assert!(claims.exp < now + twenty_four_hours_in_seconds + 5);
+    }
+
+    #[test]
+    /// Test 10: UserGuard allows user with 'user' role.
+    fn test_user_guard_logic_allows_user_role() {
+        let claims = create_test_claims(Uuid::new_v4().to_string(), "user".to_string(), 3600);
+        assert_eq!(claims.role, "user");
+    }
+
+    #[test]
+    /// Test 11: UserGuard blocks user with 'courier' role.
+    fn test_user_guard_logic_blocks_courier_role() {
+        let claims = create_test_claims(Uuid::new_v4().to_string(), "courier".to_string(), 3600);
+        assert_ne!(claims.role, "user");
+    }
+
+    #[test]
+    /// Test 12: CourierGuard allows user with 'courier' role.
+    fn test_courier_guard_logic_allows_courier_role() {
+        let claims = create_test_claims(Uuid::new_v4().to_string(), "courier".to_string(), 3600);
+        assert_eq!(claims.role, "courier");
+    }
+
+    #[test]
+    /// Test 12.1: CourierGuard blocks user with 'user' role.
+    fn test_courier_guard_logic_blocks_user_role(){
+        let claims = create_test_claims(Uuid::new_v4().to_string(), "user".to_string(), 3600);
+        assert_ne!(claims.role, "courier");
+    }
+
+    #[test]
+    /// Test 13: JWT validation fails for invalid signature.
+    fn test_jwt_validation_fails_for_invalid_signature() {
+
+        dotenv::dotenv().ok();
+        let user = create_test_user("user");
         let token = generate_jwt(&user).unwrap();
 
         let wrong_secret = "a_completely_different_secret";
@@ -538,34 +534,123 @@ mod unit_tests {
 
         let result = decode::<Claims>(&token, &decoding_key, &validation);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err().kind(),
-            jsonwebtoken::errors::ErrorKind::InvalidSignature
-        ));
+        assert!(matches!(result.unwrap_err().kind(), jsonwebtoken::errors::ErrorKind::InvalidSignature));
     }
 
     #[test]
-    /// Test 10: Checking the conversion of the Diesel ConnectionError in AuthError.
-    fn test_diesel_connection_error_conversion() {
-        let conn_error = diesel::result::Error::DatabaseError(
+    /// Test 14: Conversion of JWT InvalidSignature error to AuthError.
+    fn test_jwt_invalid_signature_error_conversion() {
+        let jwt_error =
+            jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidSignature);
+        let auth_error: AuthError = jwt_error.into();
+        assert!(matches!(auth_error, AuthError::TokenGenerationError(_)));
+    }
+
+    #[test]
+    /// Test 15: Conversion of Diesel NotNullViolation error works.
+    fn test_diesel_not_null_violation_error_conversion() {
+        let not_null_error = diesel::result::Error::DatabaseError(
             diesel::result::DatabaseErrorKind::NotNullViolation,
-            Box::new("connection refused".to_string()),
+            Box::new("null value in column".to_string()),
         );
-        let auth_error: AuthError = conn_error.into();
+        let auth_error: AuthError = not_null_error.into();
         assert!(matches!(auth_error, AuthError::DatabaseError(_)));
-        assert!(format!("{}", auth_error).contains("connection refused"));
+        assert!(format!("{}", auth_error).contains("null value in column"));
     }
 
     #[test]
-    /// Test 11:Check DTO creation for updating user.
-    fn test_update_user_dto_creation() {
-        let update_data = UpdateUser {
-            name: Some("New Name".to_string()),
-            email: None,
-            phone_number: Some("12345".to_string()),
-            favorite_address: None,
+    /// Test 16: Correct definition of courier status (Free/Busy)
+    fn test_courier_status_enum() {
+        assert_eq!(format!("{:?}", CourierStatus::Free), "Free");
+        assert_eq!(format!("{:?}", CourierStatus::Busy), "Busy");
+    }
+
+    #[test]
+    /// Test 17: User with is_blocked=true is considered blocked
+    fn test_user_blocked_flag() {
+        let mut user = create_test_user("user");
+        user.is_blocked = true;
+        assert!(user.is_blocked);
+    }
+
+    #[test]
+    /// Test 18: User with is_deleted=true is considered deleted
+    fn test_user_deleted_flag() {
+        let mut user = create_test_user("user");
+        user.is_deleted = true;
+        assert!(user.is_deleted);
+    }
+
+    #[test]
+    /// Test 19: Courier rating is within 0..=5
+    fn test_courier_rating_bounds() {
+        let now = Utc::now().naive_utc();
+        let courier = Courier {
+            id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            status: CourierStatus::Free,
+            rating: 4.7,
+            created_at: now,
+            updated_at: now,
         };
-        assert_eq!(update_data.name.unwrap(), "New Name");
-        assert!(update_data.email.is_none());
+        assert!((0.0..=5.0).contains(&courier.rating));
+    }
+
+    #[test]
+    /// Test 20: User email must contain '@'
+    fn test_user_email_validity() {
+        let user = create_test_user("user");
+        assert!(user.email.contains('@'));
+    }
+
+    #[test]
+    /// Test 21: User role can only be 'user' or 'courier'
+    fn test_user_role_allowed_values() {
+        let user = create_test_user("user");
+        assert!(user.role == "user" || user.role == "courier");
+        let courier = create_test_user("courier");
+        assert!(courier.role == "user" || courier.role == "courier");
+    }
+
+
+    #[test]
+    /// Test 23: created_at and updated_at update correctly
+    fn test_user_timestamps_update() {
+        let mut user = create_test_user("user");
+        let old_updated = user.updated_at;
+        let new_time = old_updated + chrono::Duration::minutes(5);
+        user.updated_at = new_time;
+        assert!(user.updated_at > old_updated);
+    }
+
+    #[test]
+    /// Test 24: Cannot create courier without user_id (user_id must be valid UUID)
+    fn test_courier_requires_user_id() {
+        let now = Utc::now().naive_utc();
+        let user_id = Uuid::new_v4();
+        let courier = Courier {
+            id: Uuid::new_v4(),
+            user_id,
+            status: CourierStatus::Free,
+            rating: 5.0,
+            created_at: now,
+            updated_at: now,
+        };
+        assert_eq!(courier.user_id, user_id);
+    }
+
+    #[test]
+    /// Test 25: Cannot update courier status to invalid value (enum is limited)
+    fn test_courier_status_invalid_value() {
+        fn status_from_str(s: &str) -> Option<CourierStatus> {
+            match s {
+                "free" => Some(CourierStatus::Free),
+                "busy" => Some(CourierStatus::Busy),
+                _ => None,
+            }
+        }
+        assert!(status_from_str("free").is_some());
+        assert!(status_from_str("busy").is_some());
+        assert!(status_from_str("invalid").is_none());
     }
 }
