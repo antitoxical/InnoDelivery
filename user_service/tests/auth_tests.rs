@@ -1,4 +1,4 @@
-use chrono::{Utc};
+use chrono::Utc;
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use user_service::auth::jwt::{Claims, generate_jwt, validate_jwt};
 use user_service::models::user::User;
