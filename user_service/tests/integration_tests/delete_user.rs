@@ -72,7 +72,6 @@ async fn test_delete_user_profile() {
         println!("profile after login: {:?}", profile);
     }
 
-
     let req = test::TestRequest::delete()
         .uri("/api/api/delete")
         .insert_header(("Authorization", format!("Bearer {}", token)))

@@ -50,10 +50,14 @@ pub fn update(
     user_data: &UpdateUserDto,
 ) -> Result<DbUser, diesel::result::Error> {
     conn.transaction(|conn| {
-        diesel::update(all_users.filter(users::id.eq(user_id)).filter(is_deleted.eq(false)))
-            .set(user_data)
-            .returning(DbUser::as_returning())
-            .get_result(conn)
+        diesel::update(
+            all_users
+                .filter(users::id.eq(user_id))
+                .filter(is_deleted.eq(false)),
+        )
+        .set(user_data)
+        .returning(DbUser::as_returning())
+        .get_result(conn)
     })
 }
 
@@ -62,8 +66,12 @@ pub fn soft_delete_user(
     user_id: Uuid,
 ) -> Result<usize, diesel::result::Error> {
     conn.transaction(|conn| {
-        diesel::update(all_users.filter(users::id.eq(user_id)).filter(is_deleted.eq(false)))
-            .set(is_deleted.eq(true))
-            .execute(conn)
+        diesel::update(
+            all_users
+                .filter(users::id.eq(user_id))
+                .filter(is_deleted.eq(false)),
+        )
+        .set(is_deleted.eq(true))
+        .execute(conn)
     })
 }

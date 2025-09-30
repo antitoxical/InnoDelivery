@@ -1,15 +1,15 @@
 use actix_web::{App, http::StatusCode, test, web};
+use chrono::{Duration, Utc};
 use diesel::RunQueryDsl;
 use diesel_migrations::MigrationHarness;
+use jsonwebtoken::{EncodingKey, Header, encode};
 use serde_json::json;
 use user_service::{
+    auth::jwt::Claims,
     config::{config_auth, config_courier, config_user},
     db::{DbPool, create_db_pool},
     dto::user_dto::AuthResponse,
-    auth::jwt::Claims,
 };
-use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, Header, EncodingKey};
 
 use crate::fakers;
 
@@ -68,7 +68,12 @@ async fn test_access_with_expired_token() {
         exp: (Utc::now() - Duration::hours(1)).timestamp() as usize,
     };
     let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    let expired_token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref())).expect("Failed to generate expired JWT");
+    let expired_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_ref()),
+    )
+    .expect("Failed to generate expired JWT");
 
     let req = test::TestRequest::get()
         .uri("/api/api/profile")
