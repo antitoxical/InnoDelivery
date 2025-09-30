@@ -32,7 +32,8 @@ pub fn find_by_phone(
 
 pub fn find_by_id(conn: &mut PgConnection, user_id: Uuid) -> Result<DbUser, diesel::result::Error> {
     all_users
-        .find(user_id)
+        .filter(users::id.eq(user_id))
+        .filter(is_deleted.eq(false))
         .select(DbUser::as_select())
         .first(conn)
 }
@@ -49,7 +50,7 @@ pub fn update(
     user_data: &UpdateUserDto,
 ) -> Result<DbUser, diesel::result::Error> {
     conn.transaction(|conn| {
-        diesel::update(all_users.find(user_id))
+        diesel::update(all_users.filter(users::id.eq(user_id)).filter(is_deleted.eq(false)))
             .set(user_data)
             .returning(DbUser::as_returning())
             .get_result(conn)
@@ -61,7 +62,7 @@ pub fn soft_delete_user(
     user_id: Uuid,
 ) -> Result<usize, diesel::result::Error> {
     conn.transaction(|conn| {
-        diesel::update(all_users.find(user_id))
+        diesel::update(all_users.filter(users::id.eq(user_id)).filter(is_deleted.eq(false)))
             .set(is_deleted.eq(true))
             .execute(conn)
     })

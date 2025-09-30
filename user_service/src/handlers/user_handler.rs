@@ -57,6 +57,9 @@ pub async fn update_profile(
         Ok(Ok(user)) => HttpResponse::Ok().json(user),
         Ok(Err(e)) => match e {
             AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
+            AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
+                HttpResponse::NotFound().body("User not found")
+            }
             _ => HttpResponse::InternalServerError().body(e.to_string()),
         },
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
