@@ -3,11 +3,16 @@ use crate::db::DbPool;
 use crate::dto::user_dto::{LoginUser, NewUser as RegisterUserDto};
 use crate::services::auth_service::{self, AuthError};
 use actix_web::{HttpResponse, Responder, web};
+use validator::Validate;
 
 pub async fn register_user(
     pool: web::Data<DbPool>,
     new_user_dto: web::Json<RegisterUserDto>,
 ) -> impl Responder {
+    if let Err(validation_errors) = new_user_dto.validate() {
+        return HttpResponse::BadRequest().json(validation_errors);
+    }
+
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
             Ok(connection) => connection,
@@ -38,6 +43,10 @@ pub async fn login_user(
     pool: web::Data<DbPool>,
     login_user_dto: web::Json<LoginUser>,
 ) -> impl Responder {
+    if let Err(validation_errors) = login_user_dto.validate() {
+        return HttpResponse::BadRequest().json(validation_errors);
+    }
+
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
             Ok(connection) => connection,

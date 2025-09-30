@@ -6,13 +6,13 @@ use crate::services::auth_service::AuthError;
 use crate::services::user_service;
 use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
+use validator::Validate;
 
 pub async fn get_profile(pool: web::Data<DbPool>, auth: UserGuard) -> impl Responder {
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),
     };
-
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
             Ok(connection) => connection,
@@ -40,6 +40,9 @@ pub async fn update_profile(
     auth: UserGuard,
     update_data: web::Json<UpdateUser>,
 ) -> impl Responder {
+    if let Err(validation_errors) = update_data.validate() {
+        return HttpResponse::BadRequest().json(validation_errors);
+    }
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format in token"),

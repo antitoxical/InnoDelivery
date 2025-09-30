@@ -1,10 +1,15 @@
 mod courier_reg;
+mod courier_status_workflow;
 mod delete_user;
 mod expired_token;
+mod input_validation;
+mod profile_retrieval;
 mod registration_fails_on_duplicate_email;
+mod registration_fails_on_duplicate_phone;
 mod registration_with_invalid_data;
 mod unauthorized;
 mod update_profile;
+mod update_profile_with_invalid_data;
 mod user_access_to_courier_endpoint;
 mod user_happy_path;
 mod wrong_password;

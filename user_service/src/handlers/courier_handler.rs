@@ -38,7 +38,7 @@ pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: CourierGuard) ->
 pub async fn update_courier_status(
     pool: web::Data<DbPool>,
     auth: CourierGuard,
-    update_data: String,
+    update_data: web::Json<String>,
 ) -> impl Responder {
     let new_status = match update_data.trim().to_lowercase().as_str() {
         "free" => CourierStatus::Free,

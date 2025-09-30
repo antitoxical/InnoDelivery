@@ -21,3 +21,4 @@ fake = { version = "2.9", features = ["chrono"] }
 diesel_migrations = { version = "2.1.0", features = ["postgres"] }
 url = "2.5.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+validator = { version = "0.15.0", features = ["derive"] }
