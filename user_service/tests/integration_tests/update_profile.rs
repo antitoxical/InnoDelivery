@@ -34,8 +34,8 @@ async fn test_update_user_profile() {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
@@ -63,7 +63,7 @@ async fn test_update_user_profile() {
     let token = auth.token;
 
     let req = test::TestRequest::get()
-        .uri("/api/api/profile")
+        .uri("/users/profile")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -74,8 +74,8 @@ async fn test_update_user_profile() {
     }
 
     let new_name = "Updated Name";
-    let req = test::TestRequest::patch()
-        .uri("/api/api/update")
+    let req = test::TestRequest::put()
+        .uri("/users/update")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .set_json(&json!({ "name": new_name }))
         .to_request();

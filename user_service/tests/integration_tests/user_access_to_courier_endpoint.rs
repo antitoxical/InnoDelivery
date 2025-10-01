@@ -33,8 +33,8 @@ async fn test_user_access_to_courier_endpoint() {
         App::new()
             .app_data(web::Data::new(pool))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
@@ -68,7 +68,7 @@ async fn test_user_access_to_courier_endpoint() {
     let token = auth.token;
 
     let req = test::TestRequest::get()
-        .uri("/courier/profile")
+        .uri("/courier/courier/profile")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;

@@ -9,6 +9,8 @@ diesel::table! {
         rating -> Float4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        is_blocked -> Bool,
+        is_deleted -> Bool,
     }
 }
 

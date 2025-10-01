@@ -55,6 +55,8 @@ pub struct Courier {
     pub rating: f32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub is_blocked: bool,
+    pub is_deleted: bool,
 }
 
 #[derive(Insertable, Debug)]
@@ -62,4 +64,6 @@ pub struct Courier {
 pub struct NewCourier {
     pub user_id: Uuid,
     pub status: CourierStatus,
+    pub is_blocked: bool,
+    pub is_deleted: bool,
 }

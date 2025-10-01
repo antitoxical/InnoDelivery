@@ -33,8 +33,8 @@ async fn test_update_profile_with_invalid_data() {
         App::new()
             .app_data(web::Data::new(pool))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
@@ -60,8 +60,8 @@ async fn test_update_profile_with_invalid_data() {
     let auth: AuthResponse = test::read_body_json(resp).await;
     let token = auth.token;
 
-    let req = test::TestRequest::patch()
-        .uri("/api/api/update")
+    let req = test::TestRequest::put()
+        .uri("/users/update")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .set_json(&json!({ "name": "" }))
         .to_request();

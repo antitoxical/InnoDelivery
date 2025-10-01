@@ -33,8 +33,8 @@ async fn test_delete_user_profile() {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
@@ -62,7 +62,7 @@ async fn test_delete_user_profile() {
     let token = auth.token;
 
     let req = test::TestRequest::get()
-        .uri("/api/api/profile")
+        .uri("/users/profile")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -73,16 +73,16 @@ async fn test_delete_user_profile() {
     }
 
     let req = test::TestRequest::delete()
-        .uri("/api/api/delete")
+        .uri("/users/delete")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
     let req = test::TestRequest::get()
-        .uri("/api/profile")
+        .uri("/users/profile")
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

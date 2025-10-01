@@ -74,6 +74,7 @@ pub fn register(
     let role_str = match register_data.role.as_str() {
         "user" => "user",
         "courier" => "courier",
+        "admin" => "admin",
         _ => return Err(AuthError::ValidationError("Invalid role specified".into())),
     };
 
@@ -99,6 +100,8 @@ pub fn register(
                 let new_courier = NewCourier {
                     user_id: created_user.id,
                     status: CourierStatus::Free,
+                    is_blocked: false,
+                    is_deleted: false,
                 };
                 courier_repository::create(connection, &new_courier)?;
             }

@@ -54,6 +54,8 @@ fn test_courier_rating_bounds() {
         rating: 4.7,
         created_at: now,
         updated_at: now,
+        is_blocked: false,
+        is_deleted: false,
     };
     assert!((0.0..=5.0).contains(&courier.rating));
 }
@@ -96,6 +98,8 @@ fn test_courier_requires_user_id() {
         rating: 5.0,
         created_at: now,
         updated_at: now,
+        is_blocked: false,
+        is_deleted: false,
     };
     assert_eq!(courier.user_id, user_id);
 }

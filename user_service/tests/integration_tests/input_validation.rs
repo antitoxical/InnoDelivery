@@ -32,8 +32,8 @@ async fn test_input_validation_on_registration() {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 

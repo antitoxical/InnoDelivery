@@ -55,3 +55,30 @@ impl FromRequest for CourierGuard {
         }
     }
 }
+
+pub struct AdminGuard {
+    pub claims: crate::auth::jwt::Claims,
+}
+
+impl FromRequest for AdminGuard {
+    type Error = actix_web::Error;
+
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        match JwtMiddleware::from_request(req, payload).into_inner() {
+            Ok(middleware) => {
+                if middleware.claims.role == "admin" {
+                    ready(Ok(AdminGuard {
+                        claims: middleware.claims,
+                    }))
+                } else {
+                    ready(Err(ErrorForbidden(
+                        "Insufficient permissions: Admin role required",
+                    )))
+                }
+            }
+            Err(e) => ready(Err(e)),
+        }
+    }
+}

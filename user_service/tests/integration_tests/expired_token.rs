@@ -36,8 +36,8 @@ async fn test_access_with_expired_token() {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
@@ -76,7 +76,7 @@ async fn test_access_with_expired_token() {
     .expect("Failed to generate expired JWT");
 
     let req = test::TestRequest::get()
-        .uri("/api/api/profile")
+        .uri("/users/profile")
         .insert_header(("Authorization", format!("Bearer {}", expired_token)))
         .to_request();
     let resp = test::call_service(&app, req).await;

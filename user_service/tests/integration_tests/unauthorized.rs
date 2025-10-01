@@ -29,14 +29,12 @@ async fn test_unauthorized_access_to_protected_endpoint() {
         App::new()
             .app_data(web::Data::new(pool))
             .configure(config_auth)
-            .service(web::scope("/api").configure(config_user))
-            .service(web::scope("/courier").configure(config_courier)),
+            .configure(config_user)
+            .configure(config_courier),
     )
     .await;
 
-    let req = test::TestRequest::get()
-        .uri("/api/api/profile")
-        .to_request();
+    let req = test::TestRequest::get().uri("/users/profile").to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
