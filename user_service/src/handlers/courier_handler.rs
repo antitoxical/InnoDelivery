@@ -1,13 +1,11 @@
 use crate::auth::guard::{AdminGuard, CourierGuard};
 use crate::db;
 use crate::db::DbPool;
-use crate::dto::user_dto::UpdateUser;
 use crate::models::courier::CourierStatus;
 use crate::services::auth_service::AuthError;
-use crate::services::{courier_service, user_service};
+use crate::services::courier_service;
 use actix_web::{HttpResponse, Responder, web};
 use uuid::Uuid;
-use validator::Validate;
 
 pub async fn get_courier_profile(pool: web::Data<DbPool>, auth: CourierGuard) -> impl Responder {
     let user_id = match Uuid::parse_str(&auth.claims.sub) {
@@ -153,7 +151,7 @@ pub async fn unblock_courier(
     }
 }
 
-pub async fn admin_update_courier(
+/*pub async fn admin_update_courier(
     pool: web::Data<DbPool>,
     _auth: AdminGuard,
     path: web::Path<Uuid>,
@@ -184,7 +182,7 @@ pub async fn admin_update_courier(
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
-
+*/
 pub async fn admin_delete_courier(
     pool: web::Data<DbPool>,
     _auth: AdminGuard,

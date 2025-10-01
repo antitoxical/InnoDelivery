@@ -62,7 +62,6 @@ pub struct AdminGuard {
 
 impl FromRequest for AdminGuard {
     type Error = actix_web::Error;
-
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {

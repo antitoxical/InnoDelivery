@@ -5,6 +5,7 @@ use crate::dto::user_dto::UpdateUser;
 use crate::services::auth_service::AuthError;
 use crate::services::user_service;
 use actix_web::{HttpResponse, Responder, web};
+use log;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -95,7 +96,9 @@ pub async fn delete_profile(pool: web::Data<DbPool>, auth: UserGuard) -> impl Re
     }
 }
 
-pub async fn get_users(pool: web::Data<DbPool>, auth: AdminGuard) -> impl Responder {
+pub async fn get_users(pool: web::Data<DbPool>, admin: AdminGuard) -> impl Responder {
+    log::info!("Admin {} is fetching all users", admin.claims.sub);
+
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
             Ok(connection) => connection,
@@ -117,10 +120,11 @@ pub async fn get_users(pool: web::Data<DbPool>, auth: AdminGuard) -> impl Respon
 
 pub async fn block_user(
     pool: web::Data<DbPool>,
-    _auth: AdminGuard,
+    admin: AdminGuard,
     path: web::Path<Uuid>,
 ) -> impl Responder {
     let user_id = path.into_inner();
+    log::info!("Admin {} is blocking user {}", admin.claims.sub, user_id);
 
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
@@ -132,7 +136,14 @@ pub async fn block_user(
     .await;
 
     match result {
-        Ok(Ok(user)) => HttpResponse::Ok().json(user),
+        Ok(Ok(user)) => {
+            log::info!(
+                "Admin {} successfully blocked user {}",
+                admin.claims.sub,
+                user_id
+            );
+            HttpResponse::Ok().json(user)
+        }
         Ok(Err(e)) => match e {
             AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
                 HttpResponse::NotFound().body("User not found")
@@ -145,10 +156,11 @@ pub async fn block_user(
 
 pub async fn unblock_user(
     pool: web::Data<DbPool>,
-    _auth: AdminGuard,
+    admin: AdminGuard,
     path: web::Path<Uuid>,
 ) -> impl Responder {
     let user_id = path.into_inner();
+    log::info!("Admin {} is unblocking user {}", admin.claims.sub, user_id);
 
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
@@ -160,7 +172,14 @@ pub async fn unblock_user(
     .await;
 
     match result {
-        Ok(Ok(user)) => HttpResponse::Ok().json(user),
+        Ok(Ok(user)) => {
+            log::info!(
+                "Admin {} successfully unblocked user {}",
+                admin.claims.sub,
+                user_id
+            );
+            HttpResponse::Ok().json(user)
+        }
         Ok(Err(e)) => match e {
             AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
                 HttpResponse::NotFound().body("User not found")
@@ -173,7 +192,7 @@ pub async fn unblock_user(
 
 pub async fn admin_update_user(
     pool: web::Data<DbPool>,
-    _auth: AdminGuard,
+    admin: AdminGuard,
     path: web::Path<Uuid>,
     update_data: web::Json<UpdateUser>,
 ) -> impl Responder {
@@ -181,6 +200,7 @@ pub async fn admin_update_user(
         return HttpResponse::BadRequest().json(validation_errors);
     }
     let user_id = path.into_inner();
+    log::info!("Admin {} is updating user {}", admin.claims.sub, user_id);
 
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
@@ -192,7 +212,14 @@ pub async fn admin_update_user(
     .await;
 
     match result {
-        Ok(Ok(user)) => HttpResponse::Ok().json(user),
+        Ok(Ok(user)) => {
+            log::info!(
+                "Admin {} successfully updated user {}",
+                admin.claims.sub,
+                user_id
+            );
+            HttpResponse::Ok().json(user)
+        }
         Ok(Err(e)) => match e {
             AuthError::DatabaseError(msg) if msg.contains("NotFound") => {
                 HttpResponse::NotFound().body("User not found")
@@ -205,10 +232,11 @@ pub async fn admin_update_user(
 
 pub async fn admin_delete_user(
     pool: web::Data<DbPool>,
-    _auth: AdminGuard,
+    admin: AdminGuard,
     path: web::Path<Uuid>,
 ) -> impl Responder {
     let user_id = path.into_inner();
+    log::info!("Admin {} is deleting user {}", admin.claims.sub, user_id);
 
     let result = web::block(move || {
         let mut conn = match db::get_conn_from_pool(&pool) {
@@ -220,7 +248,14 @@ pub async fn admin_delete_user(
     .await;
 
     match result {
-        Ok(Ok(count)) if count > 0 => HttpResponse::NoContent().finish(),
+        Ok(Ok(count)) if count > 0 => {
+            log::info!(
+                "Admin {} successfully deleted user {}",
+                admin.claims.sub,
+                user_id
+            );
+            HttpResponse::NoContent().finish()
+        }
         Ok(Ok(_)) => HttpResponse::NotFound().body("User not found"),
         Ok(Err(e)) => match e {
             AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
