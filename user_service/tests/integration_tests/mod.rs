@@ -1,8 +1,16 @@
+mod admin_block_user;
+mod admin_user_profile_update;
+mod admin_view_users;
+mod admin_view_users_contains_specific;
 mod courier_reg;
 mod courier_status_workflow;
 mod delete_user;
+mod delete_user_by_admin;
 mod expired_token;
 mod input_validation;
+mod non_admin_block_user;
+mod non_admin_cannot_update_user;
+mod non_admin_cannot_view_users;
 mod profile_retrieval;
 mod registration_fails_on_duplicate_email;
 mod registration_fails_on_duplicate_phone;
