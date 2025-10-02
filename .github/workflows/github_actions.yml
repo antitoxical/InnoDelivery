@@ -45,6 +45,11 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Run tests
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_PHONE: ${{ secrets.ADMIN_PHONE }}
+          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
         run: |
           cd user_service/tests/${{ inputs.user_service }}
           cargo --version
