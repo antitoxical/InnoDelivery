@@ -40,14 +40,14 @@ async fn test_non_admin_cannot_view_users() {
             .configure(config_admin),
     )
     .await;
-
+    let email = fakers::fake_email();
     let phone = fakers::fake_phone();
     let req = test::TestRequest::post()
         .uri("/auth/register")
         .set_json(&json!({
             "name": "Regular User",
             "phone_number": &phone,
-            "email": fakers::fake_email(),
+            "email": &email,
             "password": "user123",
             "role": "user"
         }))

@@ -6,7 +6,6 @@ use user_service::{
     config::{config_admin, config_auth, config_courier, config_user},
     db::{DbPool, create_db_pool},
     dto::user_dto::UpdateUser,
-    models::user::User,
 };
 
 use crate::fakers;
