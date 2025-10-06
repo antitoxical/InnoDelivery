@@ -1,5 +1,3 @@
-// src/models/user.rs
-
 use crate::schema::users;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;

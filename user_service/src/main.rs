@@ -1,20 +1,22 @@
-pub mod auth;
-pub mod config;
-pub mod db;
-pub mod dto;
-pub mod handlers;
-pub mod models;
-pub mod repository;
-pub mod schema;
-pub mod services;
+mod admin;
+mod auth;
+mod config;
+mod db;
+mod dto;
+mod handlers;
+mod models;
+mod repository;
+mod schema;
+mod services;
 
 use actix_web::{App, HttpServer, web};
+use config::{config_admin, config_auth, config_courier, config_user};
 use db::{DbPool, create_db_pool};
-use handlers::auth_handler::{login_user, register_user};
-use handlers::user_handler::{delete_profile, get_profile, get_users, update_profile};
+use dotenv::dotenv;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
@@ -30,23 +32,20 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
+    if let Err(e) = admin::init_admin(&pool).await {
+        tracing::error!("Failed to initialize admin user: {}", e);
+        std::process::exit(1);
+    }
+
     tracing::info!("Server created at http://127.0.0.1:8081");
 
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
-            .service(
-                web::scope("/auth")
-                    .route("/register", web::post().to(register_user))
-                    .route("/login", web::post().to(login_user)),
-            )
-            .service(
-                web::scope("/api")
-                    .route("/profile", web::get().to(get_profile))
-                    .route("/update", web::patch().to(update_profile))
-                    .route("/delete", web::delete().to(delete_profile))
-                    .route("/users", web::get().to(get_users)),
-            )
+            .configure(config_auth)
+            .service(web::scope("/api").configure(config_user))
+            .service(web::scope("/courier").configure(config_courier))
+            .service(web::scope("/admin").configure(config_admin))
     })
     .bind(("127.0.0.1", 8081))?
     .run()

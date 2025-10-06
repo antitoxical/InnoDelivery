@@ -2,6 +2,6 @@
 members = [
     "user_service",
     # "order_service",
-    # "analytics_service",
+    #"analytics_service",
 ]
 

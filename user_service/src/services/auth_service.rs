@@ -1,7 +1,8 @@
 use crate::auth::jwt::generate_jwt;
-use crate::dto::user_dto::{AuthResponse, LoginUser as LoginUserDto, NewUser as NewUserDto};
+use crate::dto::user_dto::{AuthResponse, LoginUser as LoginUserDto, NewUser as RegisterUserDto};
+use crate::models::courier::{CourierStatus, NewCourier};
 use crate::models::user::{NewUser as DbNewUser, User as DbUser};
-use crate::repository::repository;
+use crate::repository::{courier_repository, user_repository};
 use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -20,6 +21,8 @@ pub enum AuthError {
     PasswordHashingError(String),
     InvalidCredentials,
     TokenGenerationError(String),
+    ValidationError(String),
+    ConnectionError(String),
 }
 
 impl fmt::Display for AuthError {
@@ -29,26 +32,20 @@ impl fmt::Display for AuthError {
             AuthError::PasswordHashingError(e) => write!(f, "Could not hash password: {}", e),
             AuthError::InvalidCredentials => write!(f, "Invalid phone number or password"),
             AuthError::TokenGenerationError(e) => write!(f, "Could not generate token: {}", e),
+            AuthError::ValidationError(e) => write!(f, "Validation error: {}", e),
+            AuthError::ConnectionError(e) => write!(f, "Connection error: {}", e),
         }
-    }
-}
-
-impl From<String> for AuthError {
-    fn from(err: String) -> AuthError {
-        AuthError::DatabaseError(err)
     }
 }
 
 impl From<DieselError> for AuthError {
     fn from(err: DieselError) -> AuthError {
         match err {
-            DieselError::NotFound => {
-                AuthError::DatabaseError("The record is not found".to_string())
-            }
+            DieselError::NotFound => AuthError::InvalidCredentials,
             DieselError::DatabaseError(kind, info) => {
                 if let diesel::result::DatabaseErrorKind::UniqueViolation = kind {
-                    return AuthError::DatabaseError(
-                        "Email or phone number are already busy.".to_string(),
+                    return AuthError::ValidationError(
+                        "Email or phone number are already in use.".to_string(),
                     );
                 }
                 AuthError::DatabaseError(info.message().to_string())
@@ -70,45 +67,68 @@ impl From<jsonwebtoken::errors::Error> for AuthError {
     }
 }
 
-pub fn register_user(
+pub fn register(
     conn: &mut PgConnection,
-    new_user_dto: NewUserDto,
+    register_data: RegisterUserDto,
 ) -> Result<DbUser, AuthError> {
-    let mut rng = thread_rng();
-    let salt = SaltString::generate(&mut rng);
+    let role_str = match register_data.role.as_str() {
+        "user" => "user",
+        "courier" => "courier",
+        "admin" => "admin",
+        _ => return Err(AuthError::ValidationError("Invalid role specified".into())),
+    };
+
+    let salt = SaltString::generate(&mut thread_rng());
     let argon2 = Argon2::default();
     let hashed_password = argon2
-        .hash_password(new_user_dto.password.as_bytes(), &salt)?
+        .hash_password(register_data.password.as_bytes(), &salt)?
         .to_string();
 
     let db_new_user = DbNewUser {
-        name: new_user_dto.name,
-        phone_number: new_user_dto.phone_number,
-        email: new_user_dto.email,
+        name: register_data.name,
+        phone_number: register_data.phone_number,
+        email: register_data.email,
         password: hashed_password,
-        role: "user".to_string(),
+        role: role_str.to_string(),
     };
 
-    repository::create(conn, &db_new_user).map_err(AuthError::from)
+    conn.transaction(
+        |connection: &mut PgConnection| -> Result<DbUser, diesel::result::Error> {
+            let created_user = user_repository::create(connection, &db_new_user)?;
+
+            if role_str == "courier" {
+                let new_courier = NewCourier {
+                    user_id: created_user.id,
+                    status: CourierStatus::Free,
+                    is_blocked: false,
+                    is_deleted: false,
+                };
+                courier_repository::create(connection, &new_courier)?;
+            }
+
+            Ok(created_user)
+        },
+    )
+    .map_err(AuthError::from)
 }
 
-pub fn login_user(
-    conn: &mut PgConnection,
-    login_user_dto: LoginUserDto,
-) -> Result<AuthResponse, AuthError> {
-    let user = repository::find_by_phone(conn, &login_user_dto.phone_number)?;
+pub fn login(conn: &mut PgConnection, login_data: LoginUserDto) -> Result<AuthResponse, AuthError> {
+    let user = user_repository::find_by_phone(conn, &login_data.phone_number)?;
 
     let parsed_hash = PasswordHash::new(&user.password)?;
     if Argon2::default()
-        .verify_password(login_user_dto.password.as_bytes(), &parsed_hash)
+        .verify_password(login_data.password.as_bytes(), &parsed_hash)
         .is_err()
     {
-        tracing::warn!("Unsuccessful attempt to enter the user: {}", user.id);
+        tracing::warn!(
+            "Unsuccessful login attempt for phone: {}",
+            login_data.phone_number
+        );
         return Err(AuthError::InvalidCredentials);
     }
 
     let token = generate_jwt(&user)?;
-    tracing::info!("User {} successfully entered the system", user.id);
+    tracing::info!("User {} successfully logged in", user.id);
 
     Ok(AuthResponse {
         token,
