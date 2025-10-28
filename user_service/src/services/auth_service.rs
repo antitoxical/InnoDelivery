@@ -78,6 +78,12 @@ pub fn register(
         _ => return Err(AuthError::ValidationError("Invalid role specified".into())),
     };
 
+    if register_data.password.len() < 5 {
+        return Err(AuthError::ValidationError(
+            "Password must be at least 5 characters long".into(),
+        ));
+    }
+
     let salt = SaltString::generate(&mut thread_rng());
     let argon2 = Argon2::default();
     let hashed_password = argon2

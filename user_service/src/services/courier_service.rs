@@ -19,7 +19,11 @@ pub fn get_courier_profile(
         phone_number: user_model.phone_number,
         email: user_model.email,
         status: courier_model.status,
-        rating: courier_model.rating,
+        average_rating: if courier_model.rating_count > 0 {
+            (courier_model.rating_sum / courier_model.rating_count as f64) as f32
+        } else {
+            0.0
+        },
     };
 
     Ok(response)
@@ -47,7 +51,11 @@ pub fn get_all_couriers(conn: &mut PgConnection) -> Result<Vec<CourierProfileRes
             phone_number: user_model.phone_number,
             email: user_model.email,
             status: courier_model.status,
-            rating: courier_model.rating,
+            average_rating: if courier_model.rating_count > 0 {
+                (courier_model.rating_sum / courier_model.rating_count as f64) as f32
+            } else {
+                0.0
+            },
         })
         .collect();
 
