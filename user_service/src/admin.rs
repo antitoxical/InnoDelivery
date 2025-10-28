@@ -1,8 +1,12 @@
 use crate::db::{DbPool, get_conn_from_pool};
 use crate::models::user::NewUser as DbNewUser;
 use crate::repository::user_repository;
-use bcrypt::{DEFAULT_COST, hash};
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, SaltString},
+};
 use diesel::result::Error::NotFound;
+use rand::thread_rng;
 use std::env;
 
 pub async fn init_admin(pool: &DbPool) -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +23,12 @@ pub async fn init_admin(pool: &DbPool) -> Result<(), Box<dyn std::error::Error>>
         }
         Err(NotFound) => {
             tracing::info!("Admin user not found, creating a new one.");
-            let hashed_password = hash(&admin_password, DEFAULT_COST)?;
+            let salt = SaltString::generate(&mut thread_rng());
+            let argon2 = Argon2::default();
+            let hashed_password = argon2
+                .hash_password(admin_password.as_bytes(), &salt)
+                .map_err(|e| format!("argon2 error: {e}"))?
+                .to_string();
 
             let new_admin = DbNewUser {
                 name: admin_name,

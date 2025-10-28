@@ -26,6 +26,7 @@ use crate::handlers::{
         admin_delete_courier, block_courier, get_all_couriers, get_courier_profile,
         unblock_courier, update_courier_status,
     },
+    internal,
     user_handler::{
         admin_delete_user, admin_update_user, block_user, delete_profile, get_profile, get_users,
         unblock_user, update_profile,
@@ -63,7 +64,7 @@ pub fn config_admin(cfg: &mut web::ServiceConfig) {
         web::scope("/users_admin")
             .route("/all", web::get().to(get_users))
             .route("/block/{id}", web::patch().to(block_user))
-            .route("/unblock/{id}", web::patch().to(unblock_user))
+            .route("/unblock/{id}", web::patch().to(unblock_user)) //.route("/{id}", web::put().to(admin_update_courier))
             .route("/{id}", web::put().to(admin_update_user))
             .route("/{id}", web::delete().to(admin_delete_user)),
     )
@@ -73,5 +74,29 @@ pub fn config_admin(cfg: &mut web::ServiceConfig) {
             .route("/block/{id}", web::patch().to(block_courier))
             .route("/unblock/{id}", web::patch().to(unblock_courier)) //.route("/{id}", web::put().to(admin_update_courier))
             .route("/{id}", web::delete().to(admin_delete_courier)),
+    );
+}
+
+pub fn config_internal(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/internal")
+            .route("/couriers/assign", web::post().to(internal::assign))
+            .route("/users/{id}/blocked", web::get().to(internal::user_blocked))
+            .route(
+                "/couriers/busy",
+                web::post().to(internal::internal_set_courier_busy),
+            )
+            .route(
+                "/couriers/free",
+                web::post().to(internal::internal_set_courier_free),
+            )
+            .route(
+                "/couriers/update_rating",
+                web::post().to(internal::internal_update_courier_rating),
+            )
+            .route(
+                "/couriers/set_rating",
+                web::post().to(internal::internal_set_courier_rating),
+            ),
     );
 }
