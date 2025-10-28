@@ -58,3 +58,58 @@ pub fn soft_delete(conn: &mut PgConnection, courier_user_id: Uuid) -> Result<usi
         .set(couriers::is_deleted.eq(true))
         .execute(conn)
 }
+
+pub fn assign_any_free_courier(conn: &mut PgConnection) -> Result<Option<Uuid>, DieselError> {
+    conn.transaction(|tx| {
+        let row = couriers::table
+            .filter(couriers::status.eq(CourierStatus::Free))
+            .filter(couriers::is_blocked.eq(false))
+            .filter(couriers::is_deleted.eq(false))
+            .for_update()
+            .skip_locked()
+            .select(couriers::user_id)
+            .first::<Uuid>(tx)
+            .optional()?;
+
+        if let Some(courier_user_id) = row {
+            diesel::update(couriers::table.filter(couriers::user_id.eq(courier_user_id)))
+                .set(couriers::status.eq(CourierStatus::Busy))
+                .execute(tx)?;
+            Ok(Some(courier_user_id))
+        } else {
+            Ok(None)
+        }
+    })
+}
+
+/*pub fn release_courier(conn: &mut PgConnection, courier_user_id: Uuid) -> Result<(), DieselError> {
+    diesel::update(couriers::table.filter(couriers::user_id.eq(courier_user_id)))
+        .set(couriers::status.eq(CourierStatus::Free))
+        .execute(conn)?;
+    Ok(())
+}*/
+
+pub fn update_courier_rating(
+    conn: &mut PgConnection,
+    courier_user_id: Uuid,
+    new_rating: f32,
+) -> Result<Courier, DieselError> {
+    use crate::schema::couriers::dsl::*;
+
+    let current_courier = couriers
+        .filter(user_id.eq(courier_user_id))
+        .first::<Courier>(conn)?;
+
+    let updated_sum = current_courier.rating_sum + new_rating as f64;
+    let updated_count = current_courier.rating_count + 1;
+
+    diesel::update(couriers.filter(user_id.eq(courier_user_id)))
+        .set((
+            rating.eq(new_rating),
+            rating_sum.eq(updated_sum),
+            rating_count.eq(updated_count),
+            updated_at.eq(chrono::Utc::now().naive_utc()),
+        ))
+        .returning(Courier::as_returning())
+        .get_result(conn)
+}
