@@ -1,0 +1,29 @@
+[package]
+name = "order_service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8.6", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+async-graphql = { version = "7.0.17", features = ["uuid", "chrono"] }
+async-graphql-axum = "7.0.17"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dotenvy = "0.15"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+diesel = { version = "2.1.0", features = ["postgres", "uuid", "chrono", "r2d2"] }
+lazy_static = "1.4.0"
+diesel_migrations = { version = "2.1.0", features = ["postgres"] }
+diesel-derive-enum = { version = "2.1.0", features = ["postgres"] }
+reqwest = { version = "0.12.4", features = ["json"] }
+thiserror = "1.0.61"
+log = "0.4.27"
+httpmock = "0.6"
+regex = "1"
+tower = { version = "0.4", features = ["util"] }
+
