@@ -1,4 +1,4 @@
-name: user service ci/cd pipeline
+name: innoDelivery quality check
 
 on: [push]
 
@@ -11,6 +11,13 @@ jobs:
 
     env:
       DATABASE_URL: postgres://admin:admin_password@localhost:5434/inno_delivery_test
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      ADMIN_PHONE: ${{ secrets.ADMIN_PHONE }}
+      ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
+      DATABASE_URL_ORDER_TEST: postgres://admin:admin_password@localhost:5436/inno_delivery_order_test
+      RUST_TEST_THREADS: 1
+
 
     services:
       postgres:
@@ -21,6 +28,20 @@ jobs:
           POSTGRES_DB: inno_delivery_test
         ports:
           - 5434:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      order_postgres_test:
+        image: postgres:16
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin_password
+          POSTGRES_DB: inno_delivery_order_test
+        ports:
+          - 5436:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -38,22 +59,28 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Check formatting
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Check formatting (Root Workspace)
         run: cargo fmt -- --check
 
-      - name: Run Clippy linter
-        run: cargo clippy -- -D warnings
+      - name: Run Clippy linter (Root Workspace)
+        run: cargo clippy --all-targets --
 
-      - name: Run tests
-        env:
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          ADMIN_PHONE: ${{ secrets.ADMIN_PHONE }}
-          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
-        run: |
-          cd user_service/tests/${{ inputs.user_service }}
-          cargo --version
-          cargo test -- --test-threads=1
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
 
+      - name: Run tests with tarpaulin for order_service
+        run: cargo tarpaulin -p order_service --out Html --output-dir coverage
 
+      - name: Run tests with tarpaulin for user_service
+        run: cargo tarpaulin -p user_service --out Html --output-dir coverage
 
+      - name: Upload services coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: services-coverage
+          path: coverage

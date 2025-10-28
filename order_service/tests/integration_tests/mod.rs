@@ -1,0 +1,10 @@
+mod create_order_courier_busy_fails_sets_pending;
+mod create_order_no_courier_sets_pending;
+mod create_order_user_blocked;
+mod create_order_with_courier_and_busy_success;
+mod create_order_with_missing_product;
+mod finish_order_releases_courier;
+mod finish_order_without_courier;
+mod process_pending_orders_assigns_or_cancels;
+mod rate_order_updates_rating_and_calls_user_service;
+mod update_order_address_and_cancel;
