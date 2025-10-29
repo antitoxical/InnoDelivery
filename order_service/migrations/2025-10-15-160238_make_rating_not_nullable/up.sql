@@ -1,0 +1,2 @@
+UPDATE orders SET rating = 0.0 WHERE rating IS NULL;
+ALTER TABLE orders ALTER COLUMN rating SET NOT NULL;
