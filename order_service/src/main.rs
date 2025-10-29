@@ -8,7 +8,6 @@ use axum::{routing::get, Router};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -18,8 +17,7 @@ async fn main() {
 
     let _pool = create_db_pool().expect("Failed to create DB pool");
 
-    let app = Router::new()
-        .route("/", get(""));
+    let app = Router::new().route("/", get(""));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
     println!("Server listening on http://{}", addr);
