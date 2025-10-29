@@ -155,35 +155,3 @@ pub fn rate_order_in_window(
     .get_result(conn)
 }
 
-/*pub fn avg_courier_rating(
-    conn: &mut PgConnection,
-    courier_id: Uuid,
-) -> Result<Option<f32>, DieselError> {
-    use diesel::dsl::sql;
-    use diesel::sql_types::Float8;
-
-    let has_ratings: bool = orders::table
-        .filter(orders::courier_id.eq(courier_id))
-        .filter(orders::status.eq(OrderStatus::Finished))
-        .filter(orders::rating.gt(0.0))
-        .select(sql::<diesel::sql_types::Bool>("1"))
-        .first::<bool>(conn)
-        .optional()?
-        .is_some();
-
-    if !has_ratings {
-        return Ok(None);
-    }
-
-    let avg_rating: Option<f64> = orders::table
-        .filter(orders::courier_id.eq(courier_id))
-        .filter(orders::status.eq(OrderStatus::Finished))
-        .filter(orders::rating.gt(0.0))
-        .select(sql::<Float8>("ROUND(AVG(rating)::numeric, 1)"))
-        .first::<f64>(conn)
-        .optional()?;
-
-    Ok(avg_rating
-        .map(|r| r as f32)
-        .filter(|&r| (1.0..=5.0).contains(&r)))
-}*/

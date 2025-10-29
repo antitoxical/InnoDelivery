@@ -57,6 +57,8 @@ pub struct Courier {
     pub updated_at: NaiveDateTime,
     pub is_blocked: bool,
     pub is_deleted: bool,
+    pub rating_sum: f64,
+    pub rating_count: i32,
 }
 
 #[derive(Insertable, Debug)]

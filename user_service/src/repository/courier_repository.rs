@@ -82,13 +82,6 @@ pub fn assign_any_free_courier(conn: &mut PgConnection) -> Result<Option<Uuid>, 
     })
 }
 
-/*pub fn release_courier(conn: &mut PgConnection, courier_user_id: Uuid) -> Result<(), DieselError> {
-    diesel::update(couriers::table.filter(couriers::user_id.eq(courier_user_id)))
-        .set(couriers::status.eq(CourierStatus::Free))
-        .execute(conn)?;
-    Ok(())
-}*/
-
 pub fn update_courier_rating(
     conn: &mut PgConnection,
     courier_user_id: Uuid,

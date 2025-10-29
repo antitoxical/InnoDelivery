@@ -15,7 +15,7 @@ pub struct NewUser {
     pub phone_number: String,
     #[validate(email(message = "Incorrect e-mail format"))]
     pub email: String,
-    #[validate(length(min = 6, message = "Password must contain at least 6 characters"))]
+    #[validate(length(min = 5, message = "Password must contain at least 5 characters"))]
     pub password: String,
     #[validate(length(
         min = 1,
@@ -43,7 +43,7 @@ pub struct UpdateUser {
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct LoginUser {
     pub phone_number: String,
-    #[validate(length(min = 6, message = "Password must contain at least 6 characters"))]
+    #[validate(length(min = 5, message = "Password must contain at least 5 characters"))]
     pub password: String,
 }
 

@@ -9,5 +9,5 @@ pub struct CourierProfileResponse {
     pub phone_number: String,
     pub email: String,
     pub status: CourierStatus,
-    pub rating: f32,
+    pub average_rating: f32,
 }
