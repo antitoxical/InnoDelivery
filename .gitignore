@@ -13,5 +13,4 @@
 /.idea/
 .idea/
 .idea
-/user_service/migrations/
-/order_service/migrations/
+.idea/InnoDelivery.iml
