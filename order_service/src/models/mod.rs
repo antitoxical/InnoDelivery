@@ -52,13 +52,12 @@ pub struct Product {
     pub updated_at: NaiveDateTime,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Serialize, Debug)]
+#[derive(Queryable, Selectable, Associations, Serialize, Debug)]
 #[diesel(belongs_to(Order))]
 #[diesel(belongs_to(Product))]
 #[diesel(table_name = order_products)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct OrderProduct {
-    pub id: Uuid,
     pub order_id: Uuid,
     pub product_id: Uuid,
     pub quantity: i32,

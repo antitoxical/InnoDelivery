@@ -7,8 +7,7 @@ pub mod sql_types {
 }
 
 diesel::table! {
-    order_products (id) {
-        id -> Uuid,
+    order_products (order_id, product_id) {
         order_id -> Uuid,
         product_id -> Uuid,
         quantity -> Int4,
@@ -46,4 +45,8 @@ diesel::table! {
 diesel::joinable!(order_products -> orders (order_id));
 diesel::joinable!(order_products -> products (product_id));
 
-diesel::allow_tables_to_appear_in_same_query!(order_products, orders, products,);
+diesel::allow_tables_to_appear_in_same_query!(
+    order_products,
+    orders,
+    products,
+);
