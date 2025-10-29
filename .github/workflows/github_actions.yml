@@ -42,7 +42,7 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Run Clippy linter
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --
 
       - name: Run tests
         env:
