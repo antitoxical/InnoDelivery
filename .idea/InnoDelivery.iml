@@ -5,6 +5,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user_service/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user_service/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/order_service/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/order_service/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user_service/target" />
     </content>
