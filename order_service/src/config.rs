@@ -3,5 +3,5 @@ use std::env;
 
 lazy_static! {
     pub static ref DATABASE_URL: String =
-        { env::var("DATABASE_URL_ORDER").expect("DATABASE_URL_ORDER must be set") };
+        env::var("DATABASE_URL_ORDER").expect("DATABASE_URL_ORDER must be set");
 }

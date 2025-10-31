@@ -5,6 +5,7 @@ use crate::schema::users::{
     dsl::{is_blocked, is_deleted, users as all_users},
 };
 use diesel::prelude::*;
+use diesel::result::Error as DieselError;
 use uuid::Uuid;
 
 pub fn create(
@@ -92,4 +93,14 @@ pub fn set_blocked_status(
         .returning(DbUser::as_returning())
         .get_result(conn)
     })
+}
+
+pub fn is_user_blocked(
+    conn: &mut diesel::PgConnection,
+    user_id: Uuid,
+) -> Result<bool, DieselError> {
+    users::table
+        .find(user_id)
+        .select(users::is_blocked)
+        .first::<bool>(conn)
 }

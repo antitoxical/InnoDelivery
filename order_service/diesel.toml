@@ -4,6 +4,5 @@
 [print_schema]
 file = "src/schema.rs"
 custom_type_derives = ["diesel::query_builder::QueryId", "Clone"]
-filter = { only_tables = ["orders", "order_products", "products"] }
 [migrations_directory]
-dir = "C:\\Users\\Danila\\RustroverProjects\\InnoDelivery\\order_service\\migrations"
+dir = "C:\\Users\\Danila\\RustroverProjects\\InnoDelivery\\order_service\\migrations_order"
