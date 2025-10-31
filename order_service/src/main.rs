@@ -1,7 +1,10 @@
 mod config;
 mod db;
+mod graphql;
 mod models;
+mod repository;
 mod schema;
+mod services;
 
 use crate::db::create_db_pool;
 use axum::{routing::get, Router};

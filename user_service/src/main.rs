@@ -10,7 +10,7 @@ mod schema;
 mod services;
 
 use actix_web::{App, HttpServer, web};
-use config::{config_admin, config_auth, config_courier, config_user};
+use config::{config_admin, config_auth, config_courier, config_internal, config_user};
 use db::{DbPool, create_db_pool};
 use dotenv::dotenv;
 
@@ -46,6 +46,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/api").configure(config_user))
             .service(web::scope("/courier").configure(config_courier))
             .service(web::scope("/admin").configure(config_admin))
+            .service(web::scope("").configure(config_internal))
     })
     .bind(("127.0.0.1", 8081))?
     .run()
