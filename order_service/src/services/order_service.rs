@@ -1,29 +1,43 @@
+use crate::config;
 use crate::db::DbPool;
 use crate::models::{NewOrder, Order, OrderStatus};
 use crate::repository::order_repository::{self, OrderProductData};
 use log;
 use reqwest;
 use std::env;
+use std::fmt;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OrderServiceError {
-    DatabaseError(diesel::result::Error),
-    UserServiceError(reqwest::Error),
+    DatabaseError(String),
+    UserServiceError(String),
     InvalidInput(String),
     RatingWindowExpired,
     InvalidRating,
 }
 
+impl fmt::Display for OrderServiceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OrderServiceError::DatabaseError(e) => write!(f, "Database error: {}", e),
+            OrderServiceError::UserServiceError(e) => write!(f, "User service error: {}", e),
+            OrderServiceError::InvalidInput(e) => write!(f, "Invalid input: {}", e),
+            OrderServiceError::RatingWindowExpired => write!(f, "Rating window has expired"),
+            OrderServiceError::InvalidRating => write!(f, "Invalid rating value"),
+        }
+    }
+}
+
 impl From<diesel::result::Error> for OrderServiceError {
     fn from(error: diesel::result::Error) -> Self {
-        OrderServiceError::DatabaseError(error)
+        OrderServiceError::DatabaseError(error.to_string())
     }
 }
 
 impl From<reqwest::Error> for OrderServiceError {
     fn from(error: reqwest::Error) -> Self {
-        OrderServiceError::UserServiceError(error)
+        OrderServiceError::UserServiceError(error.to_string())
     }
 }
 
@@ -38,15 +52,11 @@ pub async fn rate_order(
         return Err(OrderServiceError::InvalidRating);
     }
 
-    let user_service_url =
-        env::var("USER_SERVICE_URL").unwrap_or("http://127.0.0.1:8081".to_string());
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
-
-    let order = order_repository::find_order_by_id(&mut conn, order_id)
-        .map_err(OrderServiceError::DatabaseError)?;
+    let order = order_repository::find_order_by_id(&mut conn, order_id)?;
 
     if order.user_id != user_id {
         return Err(OrderServiceError::InvalidInput(
@@ -62,13 +72,13 @@ pub async fn rate_order(
                 {
                     OrderServiceError::RatingWindowExpired
                 } else {
-                    OrderServiceError::DatabaseError(e)
+                    OrderServiceError::DatabaseError(e.to_string())
                 }
             })?;
 
     if let Some(courier_id) = updated_order.courier_id {
         let client = reqwest::Client::new();
-        let url = format!("{}/internal/couriers/set_rating", user_service_url);
+        let url = format!("{}/internal/couriers/set_rating", *config::user_service_url);
         let body = serde_json::json!({
             "courier_id": courier_id,
             "rating": rating
@@ -107,16 +117,12 @@ pub async fn create_order(
         products
     );
 
-    let user_service_url =
-        env::var("USER_SERVICE_URL").unwrap_or("http://127.0.0.1:8081".to_string());
-
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
     let product_ids: Vec<Uuid> = products.iter().map(|p| p.product_id).collect();
-    let missing = order_repository::find_missing_product_ids(&mut conn, &product_ids)
-        .map_err(OrderServiceError::DatabaseError)?;
+    let missing = order_repository::find_missing_product_ids(&mut conn, &product_ids)?;
     if !missing.is_empty() {
         log::warn!("[CREATE_ORDER] Missing products: {:?}", missing);
         return Err(OrderServiceError::InvalidInput(format!(
@@ -125,19 +131,14 @@ pub async fn create_order(
         )));
     }
 
-    if is_user_blocked(&user_service_url, user_id)
-        .await
-        .map_err(OrderServiceError::UserServiceError)?
-    {
+    if is_user_blocked(&*config::user_service_url, user_id).await? {
         log::warn!("[CREATE_ORDER] User is blocked: {}", user_id);
         return Err(OrderServiceError::InvalidInput(
             "User is blocked".to_string(),
         ));
     }
 
-    let courier_id_option = try_assign_courier(&user_service_url)
-        .await
-        .map_err(OrderServiceError::UserServiceError)?;
+    let courier_id_option = try_assign_courier(&*config::user_service_url).await?;
     log::debug!(
         "[CREATE_ORDER] Courier assignment result: {:?}",
         courier_id_option
@@ -146,14 +147,16 @@ pub async fn create_order(
     let final_courier_id;
 
     if let Some(courier_id) = courier_id_option {
-        let busy_result = set_courier_busy(&user_service_url, courier_id).await;
+        let busy_result = set_courier_busy(&*config::user_service_url, courier_id).await;
         log::debug!("[CREATE_ORDER] set_courier_busy result: {:?}", busy_result);
         if busy_result.is_ok() {
             order_status = OrderStatus::InProgress;
             final_courier_id = Some(courier_id);
         } else {
             log::warn!("[CREATE_ORDER] set_courier_busy failed, courier will not be assigned");
-            release_courier(&user_service_url, courier_id).await.ok();
+            release_courier(&*config::user_service_url, courier_id)
+                .await
+                .ok();
             order_status = OrderStatus::PendingCarrier;
             final_courier_id = None;
         }
@@ -183,7 +186,7 @@ pub async fn create_order(
             log::error!("[CREATE_ORDER] Error during order creation: {:?}", e);
         }
     }
-    result.map_err(OrderServiceError::DatabaseError)
+    result.map_err(OrderServiceError::from)
 }
 
 pub async fn set_courier_busy(
@@ -208,21 +211,21 @@ pub async fn is_user_blocked(
     user_id: Uuid,
 ) -> Result<bool, reqwest::Error> {
     let url = format!("{}/internal/users/{}/blocked", user_service_url, user_id);
-    println!("[DEBUG] Sending request to: {}", url);
+    log::debug!("[DEBUG] Sending request to: {}", url);
 
     let client = reqwest::Client::new();
     let resp = client.get(&url).send().await?;
 
-    println!("[DEBUG] Received response status: {}", resp.status());
+    log::debug!("[DEBUG] Received response status: {}", resp.status());
 
     if resp.status().is_success() {
         let body = resp.text().await?;
-        println!("[DEBUG] Response body: {}", body);
+        log::debug!("[DEBUG] Response body: {}", body);
 
         let v: serde_json::Value = match serde_json::from_str(&body) {
             Ok(val) => val,
             Err(e) => {
-                println!("[ERROR] Failed to parse JSON: {}", e);
+                log::error!("[ERROR] Failed to parse JSON: {}", e);
                 return Ok(false);
             }
         };
@@ -231,33 +234,33 @@ pub async fn is_user_blocked(
             .and_then(|b| b.as_bool())
             .unwrap_or(false))
     } else {
-        println!("[WARN] Request failed with status: {}", resp.status());
+        log::error!("[ERROR] Request failed with status: {}", resp.status());
         Ok(false)
     }
 }
 
 pub async fn try_assign_courier(user_service_url: &str) -> Result<Option<Uuid>, reqwest::Error> {
     let url = format!("{}/internal/couriers/assign", user_service_url);
-    println!("[DEBUG] Sending courier assignment request to: {}", url);
+    log::debug!("[DEBUG] Sending courier assignment request to: {}", url);
 
     let client = reqwest::Client::new();
     let resp = client.post(&url).send().await?;
 
-    println!("[DEBUG] Received response status: {}", resp.status());
+    log::debug!("[DEBUG] Received response status: {}", resp.status());
 
     if resp.status().as_u16() == 204 {
-        println!("[DEBUG] No courier available (204 No Content)");
+        log::debug!("[DEBUG] No courier available (204 No Content)");
         return Ok(None);
     }
 
     if resp.status().is_success() {
         let body = resp.text().await?;
-        println!("[DEBUG] Response body: {}", body);
+        log::debug!("[DEBUG] Response body: {}", body);
 
         let v: serde_json::Value = match serde_json::from_str(&body) {
             Ok(val) => val,
             Err(e) => {
-                println!("[ERROR] Failed to parse JSON: {}", e);
+                log::error!("[ERROR] Failed to parse JSON: {}", e);
                 return Ok(None);
             }
         };
@@ -267,7 +270,7 @@ pub async fn try_assign_courier(user_service_url: &str) -> Result<Option<Uuid>, 
             .and_then(|s| s.as_str())
             .and_then(|s| Uuid::parse_str(s).ok());
 
-        println!("[DEBUG] Parsed courier_id: {:?}", id);
+        log::debug!("[DEBUG] Parsed courier_id: {:?}", id);
         Ok(id)
     } else {
         let status = resp.status();
@@ -275,7 +278,7 @@ pub async fn try_assign_courier(user_service_url: &str) -> Result<Option<Uuid>, 
             .text()
             .await
             .unwrap_or_else(|_| String::from("<no body>"));
-        println!("[ERROR] Unexpected response: {} - {}", status, body);
+        log::error!("[ERROR] Unexpected response: {} - {}", status, body);
         Ok(None)
     }
 }
@@ -294,57 +297,46 @@ pub async fn release_courier(
     }
 }
 
-pub async fn finish_order(pool: &DbPool, order_id: Uuid) -> Result<Order, OrderServiceError> {
-    let user_service_url =
-        env::var("USER_SERVICE_URL").unwrap_or("http://127.0.0.1:8081".to_string());
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
+pub async fn complete_order(pool: &DbPool, order_id: Uuid) -> Result<Order, OrderServiceError> {
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
-    let order = order_repository::find_order_by_id(&mut conn, order_id)
-        .map_err(OrderServiceError::DatabaseError)?;
+    let order = order_repository::find_order_by_id(&mut conn, order_id)?;
 
     if let Some(courier_id) = order.courier_id {
-        release_courier(&user_service_url, courier_id)
-            .await
-            .map_err(OrderServiceError::UserServiceError)?;
+        release_courier(&*config::user_service_url, courier_id).await?;
     }
 
     order_repository::update_order_status(&mut conn, order_id, OrderStatus::Finished)
-        .map_err(OrderServiceError::DatabaseError)
+        .map_err(OrderServiceError::from)
 }
 
 pub async fn process_pending_orders(
     pool: &DbPool,
     timeout_seconds: i64,
 ) -> Result<usize, OrderServiceError> {
-    let user_service_url =
-        env::var("USER_SERVICE_URL").unwrap_or("http://127.0.0.1:8081".to_string());
-
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
     let pending_orders = order_repository::find_expired_pending_orders(
         &mut conn,
         chrono::Utc::now().naive_utc() - chrono::Duration::seconds(timeout_seconds),
-    )
-    .map_err(OrderServiceError::DatabaseError)?;
+    )?;
 
     let mut processed = 0;
 
     for order in pending_orders {
-        if let Some(courier_id) = try_assign_courier(&user_service_url).await? {
+        if let Some(courier_id) = try_assign_courier(&*config::user_service_url).await? {
             order_repository::update_order_status_and_courier(
                 &mut conn,
                 order.id,
                 OrderStatus::InProgress,
                 Some(courier_id),
-            )
-            .map_err(OrderServiceError::DatabaseError)?;
+            )?;
         } else {
-            order_repository::update_order_status(&mut conn, order.id, OrderStatus::Cancelled)
-                .map_err(OrderServiceError::DatabaseError)?;
+            order_repository::update_order_status(&mut conn, order.id, OrderStatus::Cancelled)?;
         }
 
         processed += 1;
@@ -357,11 +349,12 @@ pub async fn cancel_order_wrapper(
     pool: &DbPool,
     order_id: Uuid,
 ) -> Result<Order, OrderServiceError> {
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
+
     order_repository::update_order_status(&mut conn, order_id, OrderStatus::Cancelled)
-        .map_err(OrderServiceError::DatabaseError)
+        .map_err(OrderServiceError::from)
 }
 
 pub async fn update_order_address(
@@ -375,9 +368,9 @@ pub async fn update_order_address(
         new_address
     );
 
-    let mut conn = pool.get().map_err(|_| {
-        OrderServiceError::DatabaseError(diesel::result::Error::RollbackTransaction)
-    })?;
+    let mut conn = pool
+        .get()
+        .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
     let updated_order = order_repository::update_order_address(&mut conn, order_id, &new_address)?;
 

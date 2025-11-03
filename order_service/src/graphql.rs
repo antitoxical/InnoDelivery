@@ -3,11 +3,93 @@ use crate::models::Order;
 use crate::repository::order_repository::{self, OrderProductData};
 use crate::services::order_service::{self, OrderServiceError};
 use async_graphql::http::GraphiQLSource;
-use async_graphql::{Context, InputObject, Object, Result, Schema};
+use async_graphql::{
+    Context, ErrorExtensions, FieldError, InputObject, Object, Schema, SimpleObject,
+};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::response::IntoResponse;
 use axum::Extension;
+use diesel::r2d2;
+use diesel::result::Error as DieselError;
+use std::fmt;
 use uuid::Uuid;
+
+#[derive(Debug, Clone)]
+pub enum GraphQLError {
+    DatabaseError(String),
+    ConnectionError(String),
+    NotFound,
+    InvalidInput(String),
+    ServiceError(OrderServiceError),
+}
+
+impl fmt::Display for GraphQLError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GraphQLError::DatabaseError(e) => write!(f, "Database error: {}", e),
+            GraphQLError::ConnectionError(e) => write!(f, "Connection error: {}", e),
+            GraphQLError::NotFound => write!(f, "Resource not found"),
+            GraphQLError::InvalidInput(e) => write!(f, "Invalid input: {}", e),
+            GraphQLError::ServiceError(e) => write!(f, "Service error: {}", e),
+        }
+    }
+}
+
+impl From<DieselError> for GraphQLError {
+    fn from(err: DieselError) -> GraphQLError {
+        match err {
+            DieselError::NotFound => GraphQLError::NotFound,
+            _ => GraphQLError::DatabaseError(err.to_string()),
+        }
+    }
+}
+
+impl From<r2d2::Error> for GraphQLError {
+    fn from(err: r2d2::Error) -> GraphQLError {
+        GraphQLError::ConnectionError(err.to_string())
+    }
+}
+impl From<OrderServiceError> for GraphQLError {
+    fn from(err: OrderServiceError) -> GraphQLError {
+        GraphQLError::ServiceError(err)
+    }
+}
+
+impl From<async_graphql::Error> for GraphQLError {
+    fn from(err: async_graphql::Error) -> GraphQLError {
+        GraphQLError::InvalidInput(format!("{:?}", err))
+    }
+}
+
+impl ErrorExtensions for GraphQLError {
+    fn extend(&self) -> FieldError {
+        let (code, message) = match self {
+            GraphQLError::DatabaseError(s) => ("DATABASE_ERROR", s.clone()),
+            GraphQLError::ConnectionError(s) => ("DB_CONNECTION_ERROR", s.clone()),
+            GraphQLError::NotFound => ("NOT_FOUND", "Resource not found".to_string()),
+            GraphQLError::InvalidInput(s) => ("INVALID_INPUT", s.clone()),
+
+            GraphQLError::ServiceError(OrderServiceError::InvalidInput(s)) => {
+                ("INVALID_INPUT", s.clone())
+            }
+            GraphQLError::ServiceError(OrderServiceError::RatingWindowExpired) => (
+                "RATING_WINDOW_EXPIRED",
+                "Rating window has expired".to_string(),
+            ),
+            GraphQLError::ServiceError(OrderServiceError::InvalidRating) => {
+                ("INVALID_RATING", "Invalid rating value".to_string())
+            }
+            GraphQLError::ServiceError(e) => ("SERVICE_ERROR", e.to_string()),
+        };
+
+        self.extend_with(|_err, e| {
+            e.set("code", code);
+            e.set("details", message);
+        })
+    }
+}
+
+type GraphQLResult<T> = std::result::Result<T, GraphQLError>;
 
 pub struct QueryRoot;
 
@@ -28,19 +110,16 @@ pub struct ProductInput {
 
 #[Object]
 impl QueryRoot {
-    async fn order_by_id(&self, ctx: &Context<'_>, id: Uuid) -> Result<Option<Order>> {
+    async fn order_by_id(&self, ctx: &Context<'_>, id: Uuid) -> GraphQLResult<Option<Order>> {
         let pool: &DbPool = ctx.data()?;
         let mut conn = pool
             .get()
-            .map_err(|e| async_graphql::Error::new(format!("Database connection error: {}", e)))?;
+            .map_err(|e| GraphQLError::ConnectionError(e.to_string()))?;
 
         match order_repository::find_order_by_id(&mut conn, id) {
             Ok(order) => Ok(Some(order)),
-            Err(diesel::result::Error::NotFound) => Ok(None),
-            Err(e) => Err(async_graphql::Error::new(format!(
-                "Database query error: {}",
-                e
-            ))),
+            Err(DieselError::NotFound) => Ok(None),
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -50,15 +129,16 @@ impl QueryRoot {
         user_id: Uuid,
         limit: Option<i64>,
         offset: Option<i64>,
-    ) -> Result<Vec<Order>> {
+    ) -> GraphQLResult<Vec<Order>> {
         let pool: &DbPool = ctx.data()?;
         let mut conn = pool
             .get()
-            .map_err(|e| async_graphql::Error::new(format!("Database connection error: {}", e)))?;
+            .map_err(|e| GraphQLError::ConnectionError(e.to_string()))?;
         let limit = limit.unwrap_or(20).clamp(1, 100);
         let offset = offset.unwrap_or(0).max(0);
-        order_repository::list_orders_by_user(&mut conn, user_id, limit, offset)
-            .map_err(|e| async_graphql::Error::new(format!("Database query error: {}", e)))
+
+        let orders = order_repository::list_orders_by_user(&mut conn, user_id, limit, offset)?;
+        Ok(orders)
     }
 }
 
@@ -72,11 +152,13 @@ impl MutationRoot {
         user_id: Uuid,
         delivery_address: String,
         products: Vec<ProductInput>,
-    ) -> Result<Order> {
+    ) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
 
         if products.is_empty() {
-            return Err(async_graphql::Error::new("Product list cannot be empty"));
+            return Err(GraphQLError::InvalidInput(
+                "Product list cannot be empty".to_string(),
+            ));
         }
 
         let product_data = products
@@ -87,25 +169,9 @@ impl MutationRoot {
             })
             .collect();
 
-        match order_service::create_order(pool, user_id, delivery_address, product_data).await {
-            Ok(order) => Ok(order),
-            Err(OrderServiceError::DatabaseError(e)) => {
-                Err(async_graphql::Error::new(format!("Database error: {}", e)))
-            }
-            Err(OrderServiceError::UserServiceError(e)) => Err(async_graphql::Error::new(format!(
-                "User service error: {}",
-                e
-            ))),
-            Err(OrderServiceError::InvalidInput(e)) => {
-                Err(async_graphql::Error::new(format!("Invalid input: {}", e)))
-            }
-            Err(OrderServiceError::RatingWindowExpired) => {
-                Err(async_graphql::Error::new("Rating window expired"))
-            }
-            Err(OrderServiceError::InvalidRating) => {
-                Err(async_graphql::Error::new("Invalid rating"))
-            }
-        }
+        let order =
+            order_service::create_order(pool, user_id, delivery_address, product_data).await?;
+        Ok(order)
     }
 
     async fn update_order_address(
@@ -113,75 +179,23 @@ impl MutationRoot {
         ctx: &Context<'_>,
         order_id: Uuid,
         delivery_address: String,
-    ) -> Result<Order> {
+    ) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
 
-        match order_service::update_order_address(pool, order_id, delivery_address).await {
-            Ok(order) => Ok(order),
-
-            Err(OrderServiceError::DatabaseError(e)) => {
-                Err(async_graphql::Error::new(format!("Database error: {}", e)))
-            }
-            Err(OrderServiceError::UserServiceError(e)) => Err(async_graphql::Error::new(format!(
-                "User service error: {}",
-                e
-            ))),
-            Err(OrderServiceError::InvalidInput(e)) => {
-                Err(async_graphql::Error::new(format!("Invalid input: {}", e)))
-            }
-            Err(OrderServiceError::RatingWindowExpired) => {
-                Err(async_graphql::Error::new("Rating window expired"))
-            }
-            Err(OrderServiceError::InvalidRating) => {
-                Err(async_graphql::Error::new("Invalid rating"))
-            }
-        }
+        let order = order_service::update_order_address(pool, order_id, delivery_address).await?;
+        Ok(order)
     }
 
-    async fn finish_order(&self, ctx: &Context<'_>, id: Uuid) -> Result<Order> {
+    async fn complete_order(&self, ctx: &Context<'_>, id: Uuid) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
-        match order_service::finish_order(pool, id).await {
-            Ok(order) => Ok(order),
-            Err(OrderServiceError::DatabaseError(e)) => {
-                Err(async_graphql::Error::new(format!("Database error: {}", e)))
-            }
-            Err(OrderServiceError::UserServiceError(e)) => Err(async_graphql::Error::new(format!(
-                "User service error: {}",
-                e
-            ))),
-            Err(OrderServiceError::InvalidInput(e)) => {
-                Err(async_graphql::Error::new(format!("Invalid input: {}", e)))
-            }
-            Err(OrderServiceError::RatingWindowExpired) => {
-                Err(async_graphql::Error::new("Rating window expired"))
-            }
-            Err(OrderServiceError::InvalidRating) => {
-                Err(async_graphql::Error::new("Invalid rating"))
-            }
-        }
+        let order = order_service::complete_order(pool, id).await?;
+        Ok(order)
     }
 
-    async fn cancel_order(&self, ctx: &Context<'_>, id: Uuid) -> Result<Order> {
+    async fn cancel_order(&self, ctx: &Context<'_>, id: Uuid) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
-        match order_service::cancel_order_wrapper(pool, id).await {
-            Ok(order) => Ok(order),
-            Err(OrderServiceError::DatabaseError(e)) => {
-                Err(async_graphql::Error::new(format!("Database error: {}", e)))
-            }
-            Err(OrderServiceError::UserServiceError(e)) => Err(async_graphql::Error::new(format!(
-                "User service error: {}",
-                e
-            ))),
-            Err(OrderServiceError::InvalidInput(e)) => {
-                Err(async_graphql::Error::new(format!("Invalid input: {}", e)))
-            }
-            Err(OrderServiceError::RatingWindowExpired) => {
-                Err(async_graphql::Error::new("Rating window expired"))
-            }
-            Err(OrderServiceError::InvalidRating) => {
-                Err(async_graphql::Error::new("Invalid rating"))
-            }
-        }
+        let order = order_service::cancel_order_wrapper(pool, id).await?;
+        Ok(order)
     }
 
     async fn rate_order(
@@ -191,30 +205,13 @@ impl MutationRoot {
         rating: f32,
         user_id: Uuid,
         rating_window_minutes: Option<i32>,
-    ) -> Result<Order> {
+    ) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
 
         let rating_window = rating_window_minutes.unwrap_or(1440);
 
-        match order_service::rate_order(pool, id, user_id, rating, rating_window).await {
-            Ok(order) => Ok(order),
-            Err(OrderServiceError::DatabaseError(e)) => {
-                Err(async_graphql::Error::new(format!("Database error: {}", e)))
-            }
-            Err(OrderServiceError::UserServiceError(e)) => Err(async_graphql::Error::new(format!(
-                "User service error: {}",
-                e
-            ))),
-            Err(OrderServiceError::InvalidInput(e)) => {
-                Err(async_graphql::Error::new(format!("Invalid input: {}", e)))
-            }
-            Err(OrderServiceError::RatingWindowExpired) => {
-                Err(async_graphql::Error::new("Rating window expired"))
-            }
-            Err(OrderServiceError::InvalidRating) => {
-                Err(async_graphql::Error::new("Invalid rating"))
-            }
-        }
+        let order = order_service::rate_order(pool, id, user_id, rating, rating_window).await?;
+        Ok(order)
     }
 }
 
