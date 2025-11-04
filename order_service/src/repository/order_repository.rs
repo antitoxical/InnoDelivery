@@ -154,4 +154,3 @@ pub fn rate_order_in_window(
     ))
     .get_result(conn)
 }
-
