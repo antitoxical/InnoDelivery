@@ -107,7 +107,7 @@ pub async fn rate_order(
 pub async fn create_order(
     pool: &DbPool,
     user_id: Uuid,
-    delivery_address: String,
+    delivery_address: &str,
     products: Vec<OrderProductData>,
 ) -> Result<Order, OrderServiceError> {
     log::info!(
@@ -169,7 +169,7 @@ pub async fn create_order(
     let new_order = NewOrder {
         user_id,
         courier_id: final_courier_id,
-        delivery_address: delivery_address.clone(),
+        delivery_address: delivery_address.parse().unwrap(),
         status: order_status,
     };
     log::info!("[CREATE_ORDER] NewOrder struct: {:?}", new_order);
@@ -192,94 +192,92 @@ pub async fn create_order(
 pub async fn set_courier_busy(
     user_service_url: &str,
     courier_id: Uuid,
-) -> Result<(), reqwest::Error> {
+) -> Result<(), OrderServiceError> {
     let url = format!("{}/internal/couriers/busy", user_service_url);
     let body = serde_json::json!({
         "courier_id": courier_id
     });
-    let resp = reqwest::Client::new().post(&url).json(&body).send().await?;
-
-    if resp.status().is_success() {
-        Ok(())
-    } else {
-        Err(resp.error_for_status().unwrap_err())
-    }
+    reqwest::Client::new()
+        .post(&url)
+        .json(&body)
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
 }
 
 pub async fn is_user_blocked(
     user_service_url: &str,
     user_id: Uuid,
-) -> Result<bool, reqwest::Error> {
+) -> Result<bool, OrderServiceError> {
     let url = format!("{}/internal/users/{}/blocked", user_service_url, user_id);
-    log::debug!("[DEBUG] Sending request to: {}", url);
+    log::debug!(" Sending request to: {}", url);
 
     let client = reqwest::Client::new();
     let resp = client.get(&url).send().await?;
 
-    log::debug!("[DEBUG] Received response status: {}", resp.status());
+    log::debug!(" Received response status: {}", resp.status());
 
     if resp.status().is_success() {
         let body = resp.text().await?;
-        log::debug!("[DEBUG] Response body: {}", body);
+        log::debug!(" Response body: {}", body);
 
-        let v: serde_json::Value = match serde_json::from_str(&body) {
-            Ok(val) => val,
-            Err(e) => {
-                log::error!("[ERROR] Failed to parse JSON: {}", e);
-                return Ok(false);
-            }
-        };
+        let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
+            OrderServiceError::UserServiceError(format!("Failed to parse JSON: {}", e))
+        })?;
 
         Ok(v.get("is_blocked")
             .and_then(|b| b.as_bool())
             .unwrap_or(false))
     } else {
-        log::error!("[ERROR] Request failed with status: {}", resp.status());
-        Ok(false)
+        log::error!(" Request failed with status: {}", resp.status());
+        Err(OrderServiceError::UserServiceError(format!(
+            "User service returned error status: {}",
+            resp.status()
+        )))
     }
 }
 
-pub async fn try_assign_courier(user_service_url: &str) -> Result<Option<Uuid>, reqwest::Error> {
+pub async fn try_assign_courier(user_service_url: &str) -> Result<Option<Uuid>, OrderServiceError> {
     let url = format!("{}/internal/couriers/assign", user_service_url);
-    log::debug!("[DEBUG] Sending courier assignment request to: {}", url);
+    log::debug!(" Sending courier assignment request to: {}", url);
 
     let client = reqwest::Client::new();
     let resp = client.post(&url).send().await?;
 
-    log::debug!("[DEBUG] Received response status: {}", resp.status());
+    log::debug!(" Received response status: {}", resp.status());
 
     if resp.status().as_u16() == 204 {
-        log::debug!("[DEBUG] No courier available (204 No Content)");
+        log::debug!(" No courier available (204 No Content)");
         return Ok(None);
     }
 
     if resp.status().is_success() {
         let body = resp.text().await?;
-        log::debug!("[DEBUG] Response body: {}", body);
+        log::debug!(" Response body: {}", body);
 
-        let v: serde_json::Value = match serde_json::from_str(&body) {
-            Ok(val) => val,
-            Err(e) => {
-                log::error!("[ERROR] Failed to parse JSON: {}", e);
-                return Ok(None);
-            }
-        };
+        let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
+            OrderServiceError::UserServiceError(format!("Failed to parse JSON: {}", e))
+        })?;
 
         let id = v
             .get("courier_id")
             .and_then(|s| s.as_str())
             .and_then(|s| Uuid::parse_str(s).ok());
 
-        log::debug!("[DEBUG] Parsed courier_id: {:?}", id);
+        log::debug!(" Parsed courier_id: {:?}", id);
         Ok(id)
     } else {
         let status = resp.status();
-        let body = resp
-            .text()
-            .await
-            .unwrap_or_else(|_| String::from("<no body>"));
-        log::error!("[ERROR] Unexpected response: {} - {}", status, body);
-        Ok(None)
+        let body = resp.text().await.map_err(|e| {
+            OrderServiceError::UserServiceError(format!("Failed to get response body: {}", e))
+        })?;
+        let error_msg = format!(
+            "User service returned unexpected status: {} - Body: {}",
+            status, body
+        );
+        log::error!("{}", error_msg);
+        Err(OrderServiceError::UserServiceError(error_msg))
     }
 }
 pub async fn release_courier(
@@ -360,7 +358,7 @@ pub async fn cancel_order_wrapper(
 pub async fn update_order_address(
     pool: &DbPool,
     order_id: Uuid,
-    new_address: String,
+    new_address: &str,
 ) -> Result<Order, OrderServiceError> {
     log::info!(
         "[UPDATE_ADDRESS] Called for order_id={} with new_address={}",
@@ -372,7 +370,7 @@ pub async fn update_order_address(
         .get()
         .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
-    let updated_order = order_repository::update_order_address(&mut conn, order_id, &new_address)?;
+    let updated_order = order_repository::update_order_address(&mut conn, order_id, new_address)?;
 
     log::info!(
         "[UPDATE_ADDRESS] Successfully updated address for order_id={}",

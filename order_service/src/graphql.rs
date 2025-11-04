@@ -170,7 +170,7 @@ impl MutationRoot {
             .collect();
 
         let order =
-            order_service::create_order(pool, user_id, delivery_address, product_data).await?;
+            order_service::create_order(pool, user_id, &delivery_address, product_data).await?;
         Ok(order)
     }
 
@@ -182,7 +182,7 @@ impl MutationRoot {
     ) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
 
-        let order = order_service::update_order_address(pool, order_id, delivery_address).await?;
+        let order = order_service::update_order_address(pool, order_id, &delivery_address).await?;
         Ok(order)
     }
 
