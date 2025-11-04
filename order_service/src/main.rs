@@ -54,7 +54,7 @@ async fn main() {
     let listener = match TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("[ERROR] Не удалось запустить сервер на {}: {}", addr, e);
+            eprintln!("[ERROR] Failed to start the server on {}: {}", addr, e);
             return;
         }
     };
@@ -64,6 +64,6 @@ async fn main() {
         })
         .await
     {
-        eprintln!("[ERROR] Ошибка работы сервера: {}", e);
+        eprintln!("[ERROR] Server error: {}", e);
     }
 }
