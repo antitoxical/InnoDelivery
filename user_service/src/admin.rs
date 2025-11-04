@@ -11,12 +11,10 @@ use std::env;
 
 pub async fn init_admin(pool: &DbPool) -> Result<(), Box<dyn std::error::Error>> {
     let mut conn = get_conn_from_pool(pool)?;
-
     let admin_email = env::var("ADMIN_EMAIL").expect("ADMIN_EMAIL must be set");
     let admin_password = env::var("ADMIN_PASSWORD").expect("ADMIN_PASSWORD must be set");
     let admin_phone = env::var("ADMIN_PHONE").expect("ADMIN_PHONE must be set");
     let admin_name = env::var("ADMIN_NAME").unwrap_or_else(|_| "admin".to_string());
-
     match user_repository::find_by_phone(&mut conn, &admin_phone) {
         Ok(_) => {
             tracing::info!("Admin user with phone {} already exists.", admin_phone);
@@ -37,7 +35,6 @@ pub async fn init_admin(pool: &DbPool) -> Result<(), Box<dyn std::error::Error>>
                 password: hashed_password,
                 role: "admin".to_string(),
             };
-
             user_repository::create(&mut conn, &new_admin)?;
             tracing::info!("Admin user created successfully.");
         }
@@ -45,6 +42,5 @@ pub async fn init_admin(pool: &DbPool) -> Result<(), Box<dyn std::error::Error>>
             return Err(Box::new(e));
         }
     }
-
     Ok(())
 }
