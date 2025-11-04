@@ -11,6 +11,8 @@ diesel::table! {
         updated_at -> Timestamp,
         is_blocked -> Bool,
         is_deleted -> Bool,
+        rating_sum -> Float8,
+        rating_count -> Int4,
     }
 }
 
