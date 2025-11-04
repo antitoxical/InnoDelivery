@@ -169,7 +169,7 @@ pub async fn create_order(
     let new_order = NewOrder {
         user_id,
         courier_id: final_courier_id,
-        delivery_address: delivery_address.parse().unwrap(),
+        delivery_address: delivery_address.to_string(),
         status: order_status,
     };
     log::info!("[CREATE_ORDER] NewOrder struct: {:?}", new_order);
