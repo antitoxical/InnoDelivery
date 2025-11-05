@@ -21,7 +21,12 @@ async fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let pool = create_db_pool().expect("Failed to create DB pool");
+    let pool = create_db_pool()
+        .map_err(|e| {
+            eprintln!("[ERROR] Failed to create DB pool: {}", e);
+            e
+        })
+        .expect("Failed to create DB pool");
 
     let pool_clone = pool.clone();
     tokio::spawn(async move {
