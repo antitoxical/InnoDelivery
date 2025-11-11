@@ -64,7 +64,7 @@ pub fn config_admin(cfg: &mut web::ServiceConfig) {
         web::scope("/users_admin")
             .route("/all", web::get().to(get_users))
             .route("/block/{id}", web::patch().to(block_user))
-            .route("/unblock/{id}", web::patch().to(unblock_user))
+            .route("/unblock/{id}", web::patch().to(unblock_user)) //.route("/{id}", web::put().to(admin_update_courier))
             .route("/{id}", web::put().to(admin_update_user))
             .route("/{id}", web::delete().to(admin_delete_user)),
     )
