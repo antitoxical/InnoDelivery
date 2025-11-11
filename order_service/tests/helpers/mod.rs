@@ -4,10 +4,10 @@ use diesel::PgConnection;
 use diesel::RunQueryDsl;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use httpmock::MockServer;
+use order_service::config;
 use order_service::db::DbPool;
 use order_service::graphql::{graphql_handler, AppSchema, MutationRoot, QueryRoot};
 use std::env;
-use order_service::config;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations_order");
 
