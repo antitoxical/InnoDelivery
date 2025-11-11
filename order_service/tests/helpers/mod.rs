@@ -7,8 +7,9 @@ use httpmock::MockServer;
 use order_service::db::DbPool;
 use order_service::graphql::{graphql_handler, AppSchema, MutationRoot, QueryRoot};
 use std::env;
+use order_service::config;
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations_order");
 
 fn run_migrations(conn: &mut PgConnection) {
     conn.run_pending_migrations(MIGRATIONS)
@@ -43,8 +44,7 @@ pub async fn setup_test_app() -> (Router, DbPool, MockServer) {
     }
 
     let server = MockServer::start();
-    let user_service_url = server.url("");
-    env::set_var("USER_SERVICE_URL", &user_service_url);
+    env::set_var("USER_SERVICE_URL", &*config::user_service_url);
 
     let schema = AppSchema::build(QueryRoot, MutationRoot, async_graphql::EmptySubscription)
         .data(pool.clone())
