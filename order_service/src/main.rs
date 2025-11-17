@@ -34,7 +34,13 @@ async fn main() {
         loop {
             ticker.tick().await;
             tracing::info!("Running pending order processor...");
-            match services::order_service::process_pending_orders(&pool_clone, 600).await {
+            match services::order_service::process_pending_orders(
+                &pool_clone,
+                &config::user_service_url,
+                600,
+            )
+            .await
+            {
                 Ok(count) => {
                     if count > 0 {
                         tracing::info!("Processed {} pending orders.", count);

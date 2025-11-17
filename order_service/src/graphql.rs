@@ -3,9 +3,7 @@ use crate::models::Order;
 use crate::repository::order_repository::{self, OrderProductData};
 use crate::services::order_service::{self, OrderServiceError};
 use async_graphql::http::GraphiQLSource;
-use async_graphql::{
-    Context, ErrorExtensions, FieldError, InputObject, Object, Schema, SimpleObject,
-};
+use async_graphql::{Context, ErrorExtensions, FieldError, InputObject, Object, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::response::IntoResponse;
 use axum::Extension;
@@ -169,8 +167,16 @@ impl MutationRoot {
             })
             .collect();
 
-        let order =
-            order_service::create_order(pool, user_id, &delivery_address, product_data).await?;
+        let user_service_url: &str = ctx.data::<String>()?.as_str();
+
+        let order = order_service::create_order(
+            pool,
+            user_service_url,
+            user_id,
+            &delivery_address,
+            product_data,
+        )
+        .await?;
         Ok(order)
     }
 
@@ -188,7 +194,9 @@ impl MutationRoot {
 
     async fn complete_order(&self, ctx: &Context<'_>, id: Uuid) -> GraphQLResult<Order> {
         let pool: &DbPool = ctx.data()?;
-        let order = order_service::complete_order(pool, id).await?;
+        let user_service_url: &str = ctx.data::<String>()?.as_str();
+
+        let order = order_service::complete_order(pool, user_service_url, id).await?;
         Ok(order)
     }
 
@@ -210,7 +218,11 @@ impl MutationRoot {
 
         let rating_window = rating_window_minutes.unwrap_or(1440);
 
-        let order = order_service::rate_order(pool, id, user_id, rating, rating_window).await?;
+        let user_service_url: &str = ctx.data::<String>()?.as_str();
+
+        let order =
+            order_service::rate_order(pool, user_service_url, id, user_id, rating, rating_window)
+                .await?;
         Ok(order)
     }
 }

@@ -1,6 +1,7 @@
 use axum::http::{Request, StatusCode};
 use httpmock::Method::GET;
 use serde_json::json;
+use std::env;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -8,8 +9,9 @@ use crate::helpers;
 
 #[tokio::test]
 async fn create_order_with_missing_product() {
-    let (app, _pool, server) = helpers::setup_test_app().await;
-
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
+    let (app, _pool, server) = helpers::setup_test_app(&*db_url).await;
     let user_id = Uuid::new_v4();
     let non_existent_prod_id = Uuid::new_v4();
 

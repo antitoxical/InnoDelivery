@@ -1,9 +1,11 @@
 use axum::http::{Request, StatusCode};
+use dotenvy::dotenv;
 use order_service::{
     models::{NewOrder, OrderStatus},
     repository::order_repository::{self, OrderProductData},
 };
 use serde_json::json;
+use std::env;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -12,8 +14,10 @@ use crate::helpers;
 
 #[tokio::test]
 async fn finish_order_without_courier() {
-    let (app, pool, _server) = helpers::setup_test_app().await;
-
+    dotenv().ok();
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
+    let (app, pool, _server) = helpers::setup_test_app(&*db_url).await;
     let user_id = Uuid::new_v4();
     let order = {
         let mut conn = pool.get().expect("pool conn");
@@ -37,8 +41,8 @@ async fn finish_order_without_courier() {
 
     let mutation = format!(
         r#"
-        mutation FinishOrder {{
-            finishOrder(id: "{}") {{
+        mutation CompleteOrder {{
+            completeOrder(id: "{}") {{
                 id
                 status
             }}
@@ -61,7 +65,7 @@ async fn finish_order_without_courier() {
         .unwrap();
     let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let data = &json_body["data"]["finishOrder"];
+    let data = &json_body["data"]["completeOrder"];
     assert_eq!(data["id"], order.id.to_string());
     assert_eq!(data["status"], "FINISHED");
 }

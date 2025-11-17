@@ -1,14 +1,19 @@
 use crate::fakers;
 use crate::helpers;
 use diesel::prelude::*;
+use dotenvy::dotenv;
 use httpmock::Method::POST;
 use order_service::models::{NewOrder, OrderStatus};
 use order_service::repository::order_repository::{self, OrderProductData};
+use std::env;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn process_pending_orders_assigns_or_cancels() {
-    let (_app, pool, server) = helpers::setup_test_app().await;
+    dotenv().ok();
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
+    let (_app, pool, server) = helpers::setup_test_app(&db_url).await;
     let user_id = Uuid::new_v4();
     let order_id;
 
@@ -49,9 +54,13 @@ async fn process_pending_orders_assigns_or_cancels() {
             .body(format!("{{\"courier_id\":\"{}\"}}", courier_id));
     });
 
-    let processed = order_service::services::order_service::process_pending_orders(&pool, 1)
-        .await
-        .expect("process_pending_orders failed");
+    let processed = order_service::services::order_service::process_pending_orders(
+        &pool,
+        server.base_url().as_str(),
+        1,
+    )
+    .await
+    .expect("process_pending_orders failed");
 
     assert!(processed >= 1);
 

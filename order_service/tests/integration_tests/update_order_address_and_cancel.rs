@@ -4,6 +4,7 @@ use order_service::{
     repository::order_repository::{self, OrderProductData},
 };
 use serde_json::json;
+use std::env;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -12,8 +13,10 @@ use crate::helpers;
 
 #[tokio::test]
 async fn update_order_address_and_cancel() {
-    let (app, pool, _server) = helpers::setup_test_app().await;
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
 
+    let (app, pool, _server) = helpers::setup_test_app(&*db_url).await;
     let user_id = Uuid::new_v4();
     let new_address = "addr new".to_string();
     let order = {

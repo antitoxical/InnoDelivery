@@ -4,7 +4,6 @@ use crate::models::{NewOrder, Order, OrderStatus};
 use crate::repository::order_repository::{self, OrderProductData};
 use log;
 use reqwest;
-use std::env;
 use std::fmt;
 use uuid::Uuid;
 
@@ -43,6 +42,7 @@ impl From<reqwest::Error> for OrderServiceError {
 
 pub async fn rate_order(
     pool: &DbPool,
+    user_service_url: &str,
     order_id: Uuid,
     user_id: Uuid,
     rating: f32,
@@ -78,7 +78,7 @@ pub async fn rate_order(
 
     if let Some(courier_id) = updated_order.courier_id {
         let client = reqwest::Client::new();
-        let url = format!("{}/internal/couriers/set_rating", *config::user_service_url);
+        let url = format!("{}/internal/couriers/set_rating", user_service_url);
         let body = serde_json::json!({
             "courier_id": courier_id,
             "rating": rating
@@ -106,6 +106,7 @@ pub async fn rate_order(
 
 pub async fn create_order(
     pool: &DbPool,
+    user_service_url: &str,
     user_id: Uuid,
     delivery_address: &str,
     products: Vec<OrderProductData>,
@@ -131,14 +132,15 @@ pub async fn create_order(
         )));
     }
 
-    if is_user_blocked(&*config::user_service_url, user_id).await? {
+    if is_user_blocked(user_service_url, user_id).await? {
+        // <--- Передаем URL
         log::warn!("[CREATE_ORDER] User is blocked: {}", user_id);
         return Err(OrderServiceError::InvalidInput(
             "User is blocked".to_string(),
         ));
     }
 
-    let courier_id_option = try_assign_courier(&*config::user_service_url).await?;
+    let courier_id_option = try_assign_courier(user_service_url).await?;
     log::debug!(
         "[CREATE_ORDER] Courier assignment result: {:?}",
         courier_id_option
@@ -147,16 +149,14 @@ pub async fn create_order(
     let final_courier_id;
 
     if let Some(courier_id) = courier_id_option {
-        let busy_result = set_courier_busy(&*config::user_service_url, courier_id).await;
+        let busy_result = set_courier_busy(user_service_url, courier_id).await;
         log::debug!("[CREATE_ORDER] set_courier_busy result: {:?}", busy_result);
         if busy_result.is_ok() {
             order_status = OrderStatus::InProgress;
             final_courier_id = Some(courier_id);
         } else {
             log::warn!("[CREATE_ORDER] set_courier_busy failed, courier will not be assigned");
-            release_courier(&*config::user_service_url, courier_id)
-                .await
-                .ok();
+            let _ = release_courier(user_service_url, courier_id).await;
             order_status = OrderStatus::PendingCarrier;
             final_courier_id = None;
         }
@@ -295,23 +295,28 @@ pub async fn release_courier(
     }
 }
 
-pub async fn complete_order(pool: &DbPool, order_id: Uuid) -> Result<Order, OrderServiceError> {
+pub async fn complete_order(
+    pool: &DbPool,
+    user_service_url: &str,
+    order_id: Uuid,
+) -> Result<Order, OrderServiceError> {
     let mut conn = pool
         .get()
         .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
 
     let order = order_repository::find_order_by_id(&mut conn, order_id)?;
-
     if let Some(courier_id) = order.courier_id {
-        release_courier(&*config::user_service_url, courier_id).await?;
+        release_courier(user_service_url, courier_id).await?;
     }
-
     order_repository::update_order_status(&mut conn, order_id, OrderStatus::Finished)
-        .map_err(OrderServiceError::from)
+        .map_err(OrderServiceError::from)?;
+    let updated_order = order_repository::find_order_by_id(&mut conn, order_id)?;
+    Ok(updated_order)
 }
 
 pub async fn process_pending_orders(
     pool: &DbPool,
+    user_service_url: &str,
     timeout_seconds: i64,
 ) -> Result<usize, OrderServiceError> {
     let mut conn = pool
@@ -326,7 +331,8 @@ pub async fn process_pending_orders(
     let mut processed = 0;
 
     for order in pending_orders {
-        if let Some(courier_id) = try_assign_courier(&*config::user_service_url).await? {
+        if let Some(courier_id) = try_assign_courier(user_service_url).await? {
+            // <--- Передаем URL
             order_repository::update_order_status_and_courier(
                 &mut conn,
                 order.id,
@@ -350,9 +356,10 @@ pub async fn cancel_order_wrapper(
     let mut conn = pool
         .get()
         .map_err(|e| OrderServiceError::DatabaseError(e.to_string()))?;
-
     order_repository::update_order_status(&mut conn, order_id, OrderStatus::Cancelled)
-        .map_err(OrderServiceError::from)
+        .map_err(OrderServiceError::from)?;
+    let updated_order = order_repository::find_order_by_id(&mut conn, order_id)?;
+    Ok(updated_order)
 }
 
 pub async fn update_order_address(

@@ -5,6 +5,7 @@ use order_service::{
     repository::order_repository::{self, OrderProductData},
 };
 use serde_json::json;
+use std::env;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -13,7 +14,11 @@ use crate::helpers;
 
 #[tokio::test]
 async fn rate_order_updates_rating_and_calls_user_service() {
-    let (app, pool, server) = helpers::setup_test_app().await;
+    dotenvy::dotenv().ok();
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
+
+    let (app, pool, server) = helpers::setup_test_app(&db_url).await;
 
     let user_id = Uuid::new_v4();
     let courier_id = Uuid::new_v4();
@@ -44,6 +49,7 @@ async fn rate_order_updates_rating_and_calls_user_service() {
             .json_body(json!({"courier_id": courier_id, "rating": rating_value}));
         then.status(200);
     });
+
     let mutation = format!(
         r#"
         mutation RateOrder {{
@@ -68,16 +74,29 @@ async fn rate_order_updates_rating_and_calls_user_service() {
 
     let response = app.oneshot(request).await.unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+    let status = response.status();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let body_str = String::from_utf8_lossy(&body_bytes);
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Expected status OK, but got {}. Body: {}",
+        status,
+        body_str
+    );
+
+    let json_body: serde_json::Value =
+        serde_json::from_str(&body_str).expect("Failed to parse response body as JSON");
+
+    if let Some(errors) = json_body.get("errors") {
+        panic!("GraphQL query returned errors: {}", errors);
+    }
 
     let data = &json_body["data"]["rateOrder"];
     assert_eq!(data["id"], order.id.to_string());
     assert_eq!(data["rating"], rating_value);
-
     rating_mock.assert();
 }

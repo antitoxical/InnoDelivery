@@ -1,6 +1,7 @@
 use axum::http::{Request, StatusCode};
 use httpmock::Method::{GET, POST};
 use serde_json::json;
+use std::env;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -9,7 +10,11 @@ use crate::helpers;
 
 #[tokio::test]
 async fn create_order_courier_busy_fails_sets_pending() {
-    let (app, pool, server) = helpers::setup_test_app().await;
+    dotenvy::dotenv().ok();
+    let db_url =
+        env::var("DATABASE_URL_ORDER_TEST").expect("DATABASE_URL_ORDER_TEST needs to be set");
+
+    let (app, pool, server) = helpers::setup_test_app(&*db_url).await;
 
     let prod_id = {
         let mut conn = pool.get().expect("pool conn");
