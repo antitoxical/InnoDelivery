@@ -57,6 +57,7 @@ pub struct Product {
 #[diesel(belongs_to(Product))]
 #[diesel(table_name = order_products)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
+#[allow(dead_code)]
 pub struct OrderProduct {
     pub order_id: Uuid,
     pub product_id: Uuid,

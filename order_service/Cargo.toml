@@ -23,7 +23,8 @@ diesel-derive-enum = { version = "2.1.0", features = ["postgres"] }
 reqwest = { version = "0.12.4", features = ["json"] }
 thiserror = "1.0.61"
 log = "0.4.27"
-httpmock = "0.6"
+httpmock = "0.7.0"
 regex = "1"
 tower = { version = "0.4", features = ["util"] }
-
+env_logger = "0.10"
+tracing-log = "0.2.0"
