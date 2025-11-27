@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 use tokio::time::{interval, Duration};
 
 #[tokio::main]
+#[cfg(not(tarpaulin_include))]
 async fn main() {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()

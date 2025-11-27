@@ -21,6 +21,7 @@ impl ToSql<Text, diesel::pg::Pg> for CourierStatus
 where
     String: ToSql<Text, diesel::pg::Pg>,
 {
+    #[cfg(not(tarpaulin_include))]
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::pg::Pg>) -> serialize::Result {
         let s = match self {
             CourierStatus::Free => "free",

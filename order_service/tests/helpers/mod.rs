@@ -5,11 +5,13 @@ use diesel::RunQueryDsl;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use httpmock::MockServer;
 use order_service::db::DbPool;
-use order_service::graphql::{graphql_handler, AppSchema, MutationRoot, QueryRoot};
-use std::env;
+use order_service::graphql::{
+    graphql_handler, graphql_playground, AppSchema, MutationRoot, QueryRoot,
+};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations_order");
 
+#[cfg(not(tarpaulin_include))]
 pub async fn setup_test_app(database_url: &str) -> (Router, DbPool, MockServer) {
     let _ = dotenvy::dotenv();
 
@@ -35,7 +37,7 @@ pub async fn setup_test_app(database_url: &str) -> (Router, DbPool, MockServer) 
         .finish();
 
     let app = Router::new()
-        .route("/", post(graphql_handler))
+        .route("/", post(graphql_handler).get(graphql_playground))
         .layer(Extension(schema));
 
     (app, pool, server)

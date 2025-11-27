@@ -116,7 +116,7 @@ impl QueryRoot {
 
         match order_repository::find_order_by_id(&mut conn, id) {
             Ok(order) => Ok(Some(order)),
-            Err(DieselError::NotFound) => Ok(None),
+            Err(DieselError::NotFound) => Err(GraphQLError::NotFound),
             Err(e) => Err(e.into()),
         }
     }

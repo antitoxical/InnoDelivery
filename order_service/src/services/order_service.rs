@@ -1,4 +1,3 @@
-use crate::config;
 use crate::db::DbPool;
 use crate::models::{NewOrder, Order, OrderStatus};
 use crate::repository::order_repository::{self, OrderProductData};
@@ -40,6 +39,14 @@ impl From<reqwest::Error> for OrderServiceError {
     }
 }
 
+fn handle_rating_error(e: diesel::result::Error) -> OrderServiceError {
+    if e == diesel::result::Error::NotFound || e == diesel::result::Error::RollbackTransaction {
+        OrderServiceError::RatingWindowExpired
+    } else {
+        OrderServiceError::DatabaseError(e.to_string())
+    }
+}
+
 pub async fn rate_order(
     pool: &DbPool,
     user_service_url: &str,
@@ -66,15 +73,7 @@ pub async fn rate_order(
 
     let updated_order =
         order_repository::rate_order_in_window(&mut conn, order_id, rating, rating_window_minutes)
-            .map_err(|e| {
-                if e == diesel::result::Error::NotFound
-                    || e == diesel::result::Error::RollbackTransaction
-                {
-                    OrderServiceError::RatingWindowExpired
-                } else {
-                    OrderServiceError::DatabaseError(e.to_string())
-                }
-            })?;
+            .map_err(handle_rating_error)?;
 
     if let Some(courier_id) = updated_order.courier_id {
         let client = reqwest::Client::new();
@@ -133,7 +132,6 @@ pub async fn create_order(
     }
 
     if is_user_blocked(user_service_url, user_id).await? {
-        // <--- Передаем URL
         log::warn!("[CREATE_ORDER] User is blocked: {}", user_id);
         return Err(OrderServiceError::InvalidInput(
             "User is blocked".to_string(),
@@ -141,7 +139,7 @@ pub async fn create_order(
     }
 
     let courier_id_option = try_assign_courier(user_service_url).await?;
-    log::debug!(
+    log::info!(
         "[CREATE_ORDER] Courier assignment result: {:?}",
         courier_id_option
     );
@@ -332,7 +330,6 @@ pub async fn process_pending_orders(
 
     for order in pending_orders {
         if let Some(courier_id) = try_assign_courier(user_service_url).await? {
-            // <--- Передаем URL
             order_repository::update_order_status_and_courier(
                 &mut conn,
                 order.id,
@@ -385,4 +382,33 @@ pub async fn update_order_address(
     );
 
     Ok(updated_order)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use diesel::result::Error as DieselError;
+    #[test]
+    fn test_handle_rating_error_not_found() {
+        let err = DieselError::NotFound;
+        let res = handle_rating_error(err);
+        assert!(matches!(res, OrderServiceError::RatingWindowExpired));
+    }
+    #[test]
+    fn test_handle_rating_error_rollback() {
+        let err = DieselError::RollbackTransaction;
+        let res = handle_rating_error(err);
+        assert!(matches!(res, OrderServiceError::RatingWindowExpired));
+    }
+    #[test]
+    fn test_handle_rating_error_other() {
+        let custom_msg = "My custom DB error";
+        let err = DieselError::QueryBuilderError(custom_msg.into());
+        let res = handle_rating_error(err);
+        if let OrderServiceError::DatabaseError(msg) = res {
+            assert!(msg.contains(custom_msg));
+        } else {
+            panic!("Expected DatabaseError");
+        }
+    }
 }

@@ -27,3 +27,4 @@ httpmock = "0.7.0"
 regex = "1"
 tower = { version = "0.4", features = ["util"] }
 env_logger = "0.10"
+tracing-log = "0.2.0"
