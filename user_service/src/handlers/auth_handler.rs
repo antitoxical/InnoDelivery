@@ -2,6 +2,7 @@ use crate::db;
 use crate::db::DbPool;
 use crate::dto::user_dto::{LoginUser, NewUser as RegisterUserDto};
 use crate::services::auth_service::{self, AuthError};
+use crate::services::analytics_client::notify_analytics_user_created;
 use actix_web::{HttpResponse, Responder, web};
 use validator::Validate;
 
@@ -20,10 +21,22 @@ pub async fn register_user(
         };
         auth_service::register(&mut conn, new_user_dto.into_inner())
     })
-    .await;
+        .await;
 
     match result {
-        Ok(Ok(user)) => HttpResponse::Created().json(user),
+        Ok(Ok(user)) => {
+            let analytics_url = std::env::var("ANALYTICS_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:8082".to_string());
+
+            let user_id = user.id;
+            let role = user.role.clone();
+
+            tokio::spawn(async move {
+                let _ = notify_analytics_user_created(&analytics_url, user_id, &role).await;
+            });
+
+            HttpResponse::Created().json(user)
+        },
         Ok(Err(e)) => match e {
             AuthError::ConnectionError(msg) => HttpResponse::ServiceUnavailable().body(msg),
             AuthError::ValidationError(msg) => {
@@ -54,7 +67,7 @@ pub async fn login_user(
         };
         auth_service::login(&mut conn, login_user_dto.into_inner())
     })
-    .await;
+        .await;
 
     match result {
         Ok(Ok(response)) => HttpResponse::Ok().json(response),
