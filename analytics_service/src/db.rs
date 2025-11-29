@@ -1,6 +1,6 @@
 use crate::config::Config;
-use mongodb::{Client as MongoClient, options::ClientOptions};
 use clickhouse::Client as ClickHouseClient;
+use mongodb::{options::ClientOptions, Client as MongoClient};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -29,7 +29,10 @@ pub async fn init_db(config: &Config) -> Result<DbConnection, Box<dyn std::error
         .with_password(&config.clickhouse_password)
         .with_database(&config.clickhouse_db);
 
-    let _ = clickhouse_client.query("SELECT 1").fetch_one::<u8>().await?;
+    let _ = clickhouse_client
+        .query("SELECT 1")
+        .fetch_one::<u8>()
+        .await?;
     tracing::info!("Successfully connected to ClickHouse");
 
     init_clickhouse_schema(&clickhouse_client).await?;
@@ -40,7 +43,9 @@ pub async fn init_db(config: &Config) -> Result<DbConnection, Box<dyn std::error
     })
 }
 
-async fn init_clickhouse_schema(client: &ClickHouseClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn init_clickhouse_schema(
+    client: &ClickHouseClient,
+) -> Result<(), Box<dyn std::error::Error>> {
     let ddl_orders = r#"
     CREATE TABLE IF NOT EXISTS orders_analytics (
         order_id String,

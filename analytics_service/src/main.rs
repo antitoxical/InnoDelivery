@@ -1,17 +1,17 @@
 mod config;
 mod db;
-mod models;
 mod handlers;
+mod models;
 mod repository;
 
 use crate::config::Config;
 use crate::db::init_db;
+use crate::handlers::analytics::{track_order_completion, track_user_registration};
+use axum::routing::post;
 use axum::{routing::get, Router};
+use mongodb::bson::doc;
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
-use mongodb::bson::doc;
-use crate::handlers::analytics::{track_user_registration, track_order_completion};
-use axum::routing::post;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -40,7 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Database pool created.");
 
     tracing::info!("Pinging MongoDB from main...");
-    if let Err(e) = db_conn.mongo.database("admin").run_command(doc! {"ping": 1}).await {
+    if let Err(e) = db_conn
+        .mongo
+        .database("admin")
+        .run_command(doc! {"ping": 1})
+        .await
+    {
         tracing::error!("MongoDB Ping FAILED: {}", e);
         return Err(e.into());
     }
@@ -57,7 +62,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/internal/analytics/order", post(track_order_completion))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
-
 
     let addr: SocketAddr = config.server_address.parse()?;
     tracing::info!("Listening on {}", addr);

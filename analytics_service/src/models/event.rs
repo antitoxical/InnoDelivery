@@ -1,7 +1,7 @@
+use chrono::{DateTime, Utc};
+use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use clickhouse::Row;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UserCreatedEvent {

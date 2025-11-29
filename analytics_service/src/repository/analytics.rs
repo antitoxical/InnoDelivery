@@ -2,12 +2,14 @@ use crate::db::DbConnection;
 use crate::models::event::{
     OrderAnalyticsRow, OrderFinishedEvent, RawEvent, UserAnalyticsRow, UserCreatedEvent,
 };
-use clickhouse::Client as ClickHouseClient;
-use mongodb::{Client as MongoClient, bson::to_document};
 use chrono::Utc;
+use clickhouse::Client as ClickHouseClient;
+use mongodb::{bson::to_document, Client as MongoClient};
 
-
-pub async fn save_user_event(db: &DbConnection, event: UserCreatedEvent) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn save_user_event(
+    db: &DbConnection,
+    event: UserCreatedEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mongo_collection = db.mongo.database("analytics_db").collection("raw_events");
     let raw_event = RawEvent {
         event_type: "UserCreated".to_string(),
@@ -31,8 +33,10 @@ pub async fn save_user_event(db: &DbConnection, event: UserCreatedEvent) -> Resu
     Ok(())
 }
 
-
-pub async fn save_order_event(db: &DbConnection, event: OrderFinishedEvent) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn save_order_event(
+    db: &DbConnection,
+    event: OrderFinishedEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mongo_collection = db.mongo.database("analytics_db").collection("raw_events");
     let raw_event = RawEvent {
         event_type: "OrderFinished".to_string(),

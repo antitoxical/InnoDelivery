@@ -1,5 +1,5 @@
-use serde::Serialize;
 use clickhouse::Row;
+use serde::Serialize;
 
 #[derive(Row, Serialize)]
 pub struct OrdersByDate {

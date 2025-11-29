@@ -1,7 +1,7 @@
-use axum::{extract::State, http::StatusCode, Json};
-use crate::AppState;
-use crate::models::event::{UserCreatedEvent, OrderFinishedEvent};
+use crate::models::event::{OrderFinishedEvent, UserCreatedEvent};
 use crate::repository::analytics;
+use crate::AppState;
+use axum::{extract::State, http::StatusCode, Json};
 
 pub async fn track_user_registration(
     State(state): State<AppState>,
